@@ -90,6 +90,7 @@ async function amegoPost(path: string, payload: unknown): Promise<
   });
 
   let raw: string;
+  let httpStatus: number;
   try {
     const res = await fetch(`${BASE_URL}${path}`, {
       method: "POST",
@@ -101,21 +102,45 @@ async function amegoPost(path: string, payload: unknown): Promise<
       cache: "no-store",
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
+    httpStatus = res.status;
     raw = await res.text();
   } catch (err) {
     // 傳輸層失敗：timeout、DNS、**IP 白名單被拒**。
     // 🔴 這明確**不等於**「沒開過」—— 見 queryByOrderId 的三態說明。
-    return {
-      ok: false,
-      reason: `連線失敗：${err instanceof Error ? err.message : String(err)}`,
-    };
+    return { ok: false, reason: `連線失敗：${describeFetchFailure(err)}` };
   }
 
+  let parsed: unknown;
   try {
-    return { ok: true, body: JSON.parse(raw) as AmegoResponse };
+    parsed = JSON.parse(raw);
   } catch {
-    return { ok: false, reason: `回應不是 JSON：${raw.slice(0, 200)}` };
+    return { ok: false, reason: `回應不是 JSON http=${httpStatus} ${raw.slice(0, 200)}` };
   }
+
+  /*
+    🔴 「解得開的 JSON」不等於「Amego 的回應」。走代理時，代理自己的
+       {"error":"unauthorized"}（token 錯）、{"error":"path_not_allowed"}（白名單漏）
+       或 WAF 的擋頁都是合法 JSON，但沒有 number 型別的 code。
+       小時光踩過：這種回應被讀成 code=NaN，last_error 只剩「code=NaN」，
+       五張發票卡了三天沒人看得出中繼回的其實是 404。
+       這裡一律當傳輸層失敗（可重試），並把 http 狀態碼與內容帶進訊息。
+  */
+  const code = (parsed as { code?: unknown } | null)?.code;
+  const codeIsNumeric =
+    typeof code === "number" || (typeof code === "string" && /^\d+$/.test(code));
+  if (!codeIsNumeric) {
+    return { ok: false, reason: `非 Amego 回應 http=${httpStatus} body=${raw.slice(0, 200)}` };
+  }
+
+  return { ok: true, body: parsed as AmegoResponse };
+}
+
+/** Node 的 fetch 失敗時 err.message 只有 "fetch failed"，真正原因藏在 cause 裡。 */
+function describeFetchFailure(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const cause = (err as { cause?: unknown }).cause;
+  const inner = cause instanceof Error ? cause.message : cause ? String(cause) : "";
+  return inner ? `${err.message}（${inner}）` : err.message;
 }
 
 /* ------------------------------------------------------------------ 反查 */

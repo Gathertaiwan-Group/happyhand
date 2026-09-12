@@ -250,10 +250,11 @@ export async function POST(request: Request) {
   ) => {
     const patch: Record<string, unknown> = { outcome, note: note ?? null };
     /*
-      回查的完整回應存進 raw。
-      ⚠️ 這不只是為了好查帳：pay_amount 以外的金額欄位叫什麼名字，規格沒寫清楚，
-         我們手上也還沒有一筆真實回應。第一筆真的刷卡進來之後，這裡就會有答案，
-         到時候把 extractPaidAmount() 的欄位名改對，金額就從「沒驗過」變成驗過。
+      回查的完整回應存進 raw，查帳用。
+      欄位名已於 2026-09-12 用同一家 COCS 的真實交易驗證（見 lib/payment/blackcat.ts
+      的 PAID_AMOUNT_FIELDS 註解）：實收金額只在 APN 的 payment_detail.pay_amount，
+      回查回應裡沒有。所以 applied_unverified 只會在 APN 缺 payment_detail 時出現，
+      真實資料顯示 B/O/E 每一則都帶。
     */
     if (queryRaw) patch.raw = { ...body, __query_response: queryRaw };
     const { error } = await db

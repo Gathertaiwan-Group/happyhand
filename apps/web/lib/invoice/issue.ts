@@ -96,6 +96,12 @@ export async function ensureInvoiceRow(orderId: string): Promise<boolean> {
     if (!order) return false;
     const o = order as unknown as OrderForInvoice;
     if (o.status !== "paid") return false;
+    /*
+      0 元訂單不開發票。工作坊梯次價可以是 0（免費場），這種訂單付款狀態照樣是 paid，
+      但沒有交易額就沒有發票可開 —— 送 TotalAmount=0 給 Amego 只會變成一列永遠
+      失敗的紀錄佔著警示。小時光的 invoice_backlog 也是用 total > 0 濾掉。
+    */
+    if (invoiceAmount(o) <= 0) return false;
 
     const { error } = await db.from("invoices").insert({
       order_id: o.id,

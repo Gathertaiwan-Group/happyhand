@@ -301,15 +301,22 @@ function unwrapQueryData(json: Record<string, unknown>): Record<string, unknown>
  *    看起來在防、實際上什麼都沒擋，正好抵消掉規格 P35 紅字那條規則存在的理由。
  *    （這就是這支函式被拆出來的原因，不要為了「少一個 null 分支」把它加回去。）
  *
- * ⚠️ 欄位名只有 pay_amount 是規格明寫的，其餘是合理猜測。猜不到就回 null，
- *    由呼叫端記成「這筆沒驗過金額」而不是假裝驗過了 ——
- *    第一筆真實交易的 payment_events.raw 裡會有完整回應，那時再把名字改對。
+ * ✅ 欄位名已用真實交易驗證（2026-09-12，對照小時光書店同一家 COCS 的 8 則真實
+ *    APN 與 3 則回查回應，含 B→O→E 完整時序與 Q 取消）：
+ *
+ *    APN body.payment_detail.pay_amount  ← 唯一的實收金額欄位，number，
+ *                                          B/O/E 每一則都有，8 筆全部等於 body.amount
+ *    回查（CocsOrderQuery）回應是**扁平的**，process_code 在頂層、是 number，
+ *    裡面**沒有任何實收金額欄位**：order_amount / request_amount 都是我們送出去的
+ *    數字念回來（Q 之後 request_amount 變 0）；grant_amount 只在 process_code=22
+ *    才有值，而且是**扣掉手續費的撥付淨額**（amount − payment_detail.fee，約 2.2%），
+ *    拿它比對會永遠不等於 orders.total。
+ *
+ * 🔴 所以只認 pay_amount。之前猜的 auth_amount / authorized_amount / trade_amount
+ *    在真實回應裡都不存在，已移除；grant_amount 永遠不可以加進來。
  */
 const PAID_AMOUNT_FIELDS = [
-  "pay_amount", // 規格 P35 明寫的實際繳款金額
-  "auth_amount",
-  "authorized_amount",
-  "trade_amount",
+  "pay_amount", // 規格 P35 明寫、真實 APN 驗證過的實際繳款金額
 ] as const;
 
 export function extractPaidAmount(

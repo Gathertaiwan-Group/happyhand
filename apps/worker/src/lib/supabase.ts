@@ -12,10 +12,20 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { WorkerEnv } from "./env.js";
 
-export type ServiceClient = SupabaseClient;
+/** 合併後快樂手的表住在 happyhands schema；與 apps/web/lib/supabase/schema.ts 同一個值。
+ *  worker 與 web 沒有共用 package，所以這裡各寫一份——兩邊都改到才算改完。 */
+export const DB_SCHEMA = "happyhands";
+
+/**
+ * 🔴 型別參數要帶 schema：`SupabaseClient` 的預設 schema 是 "public"（＝合併後小時光的表）。
+ *    不帶的話 tsc 會擋下 createServiceClient()（TS2322），這其實是好事——型別系統就是第二道防護，
+ *    讓「忘記帶 db:{schema}」在 typecheck 就爆掉，而不是上線後靜默讀到別站的資料。
+ */
+export type ServiceClient = SupabaseClient<any, typeof DB_SCHEMA>;
 
 export function createServiceClient(env: WorkerEnv): ServiceClient {
   return createClient(env.supabaseUrl, env.supabaseServiceRoleKey, {
+    db: { schema: DB_SCHEMA },
     auth: {
       // 背景服務沒有使用者 session，關掉才不會在記憶體裡累積 token 更新計時器
       persistSession: false,

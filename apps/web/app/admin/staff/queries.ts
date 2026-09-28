@@ -76,7 +76,16 @@ const USERS_MAX_PAGES = 25;
  *   「這個 email 有沒有帳號」，而 supabase-js 的 admin API 沒有 getUserByEmail()。
  *   兩邊共用同一份索引，邏輯只有一套，之後要換成 GoTrue 的 ?filter= 也只改這裡。
  *
- * 成本是 O(全站帳號數)。快樂手是課程電商，帳號數以千計時每次仍是 1–5 個請求，
+ * 🔴 2026-09 三站合併後，`auth.users` 是**全集團共用**的（小時光書店／好日子／快樂手），
+ *    所以這份索引會包含另外兩站的帳號。兩個使用端的語意都還是對的，而且其中一個變得更準：
+ *      - `emailById` 只會被 happyhands 的 profile id 查，查不到別站的人；索引只活在這次請求的
+ *        伺服器記憶體裡，不會傳給瀏覽器（page.tsx 只渲染 members／invites／lookedUpAccount）。
+ *      - `idByEmail` 的「這個信箱已經有帳號了」**必須**是全集團範圍：邀請是靠 auth trigger 在
+ *        「新帳號誕生」時消費的，對方若已經在別站註冊過，trigger 永遠不會再觸發，那張邀請就是死的。
+ *        inviteStaff() 因此改走 `invite=exists&account=<id>`（當場改他的角色），畫面上的 `dead`
+ *        旗標也是同一個判斷。合併後這條路徑會比以前常走到。
+ *
+ * 成本是 O(全集團帳號數)。快樂手是課程電商，帳號數以千計時每次仍是 1–5 個請求，
  * 而 /admin/staff 只有負責人偶爾會開。真的長到五千以上時 complete 會變 false，
  * 畫面會明講索引不完整，不會靜默給錯答案。
  */

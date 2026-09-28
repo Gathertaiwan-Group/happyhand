@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { DB_SCHEMA } from "@/lib/supabase/schema";
+
 /**
  * Supabase session 自動刷新 + 未登入導轉。
  *
@@ -24,6 +26,9 @@ export async function middleware(request: NextRequest) {
   if (!url || !anonKey) return response;
 
   const supabase = createServerClient(url, anonKey, {
+    // 目前這裡只呼叫 auth.getUser()，schema 用不到；先帶上是為了以後有人在 middleware 讀表時，
+    // 不會靜默讀到小時光的同名表。
+    db: { schema: DB_SCHEMA },
     cookies: {
       getAll() {
         return request.cookies.getAll();

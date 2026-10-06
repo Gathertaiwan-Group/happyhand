@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Field } from "@/components/ui/field";
 import { buttonClass } from "@/components/ui/button";
 import { SITE } from "@/lib/site";
+import { authConfirmUrl } from "@/lib/auth/confirm-url";
 
 /**
  * 忘記密碼。
@@ -48,10 +49,10 @@ export function ForgotForm() {
     setError(null);
     try {
       const supabase = createClient();
-      // redirectTo 在這裡其實會被 Email Template 裡寫死的 {{ .SiteURL }}/auth/confirm
-      // 蓋過去，但還是傳一份：本機沒改模板時它就是實際生效的那個。
+      // 信件連結＝這個網址＋?token_hash=…&type=recovery&next=/reset-password（模板帶的）。
+      // 三站共用一組信件模板，網域要由各站自己帶回來，見 lib/auth/confirm-url.ts。
       const { error: err } = await supabase.auth.resetPasswordForEmail(target, {
-        redirectTo: `${window.location.origin}/auth/confirm?type=recovery&next=/reset-password`,
+        redirectTo: authConfirmUrl(window.location.origin),
       });
 
       // ⚠️ 就算 err 存在也不要把細節顯示出來。Supabase 對「信箱不存在」

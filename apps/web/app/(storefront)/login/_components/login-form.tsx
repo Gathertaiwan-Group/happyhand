@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { SITE } from "@/lib/site";
+import { authConfirmUrl } from "@/lib/auth/confirm-url";
 
 /**
  * 登入／註冊表單。
@@ -88,10 +89,10 @@ export function LoginForm({
           email: email.trim(),
           password,
           options: {
-            // 不指定的話 Supabase 會導回 site_url（也就是首頁），
-            // 那裡沒有東西處理網址上的 ?code=，使用者會覺得「點了驗證信什麼都沒發生」。
-            // 導到 /auth/callback 才會把 code 換成 session 並直接進後台。
-            emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(target)}`,
+            // 驗證信的連結＝這個網址＋?token_hash=…&type=signup&next=/account（模板帶的）。
+            // 三站共用一組信件模板，網域要由各站自己帶回來，見 lib/auth/confirm-url.ts。
+            // 不指定的話會退回 site_url——合併後那是小時光的網域，客人點信會跑到別的網站。
+            emailRedirectTo: authConfirmUrl(window.location.origin),
           },
         });
         if (err) throw new Error(mapAuthError(err.message));

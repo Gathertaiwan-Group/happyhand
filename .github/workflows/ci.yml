@@ -66,28 +66,10 @@ jobs:
       - name: Build
         run: pnpm --filter worker build
 
-  migrate:
-    name: Supabase — db push
-    needs: [web, worker]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      # 固定版號：用 latest 會去打 GitHub API 解析版本，撞到 rate limit 就整個 job 失敗
-      - uses: supabase/setup-cli@v1
-        with:
-          version: 2.113.0
-
-      - name: Link project
-        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-
-      - name: Push migrations
-        run: supabase db push
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+  # 🔴 這裡原本有 migrate job（push main 時 supabase link + db push），2026-10-09 移除。
+  # 2026-10-08 起快樂手的資料庫併入集團合併專案（noijrmhdfbfvjyvchvzj），表在 happyhands schema：
+  #   - secrets 裡的 SUPABASE_PROJECT_ID 是舊專案，舊庫關掉後每次 push main 都會失敗；
+  #   - 把 secret 改成新專案更糟：新專案沒有這個 repo 的 migration 紀錄，db push 會把
+  #     supabase/migrations（全部寫給 public）整套重放進合併專案的 public——那是小時光的 schema。
+  # 之後要改 schema：寫成 happyhands.<表> 的 SQL，手動在合併專案套用
+  # （見 alice-store/supabase/consolidation/95_cutover.md）。不要把這個 job 加回來。

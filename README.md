@@ -66,7 +66,7 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ### Vercel（前端）
 
 - Project：`happyhands`，Root Directory 設 `apps/web`，Framework 選 Next.js。
-- 已連 GitHub `LaiQuan-tech/happyhand`：**push 到 `main` 自動部署 production，PR 自動產生 Preview**。
+- 已連 GitHub `Gathertaiwan-Group/happyhand`：**push 到 `main` 自動部署 production，PR 自動產生 Preview**。
 - 環境變數在 Vercel 專案設定裡，四個都要有（見上）。
 
 ### Supabase（資料庫）

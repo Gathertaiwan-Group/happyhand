@@ -8,7 +8,7 @@ import {
   type GrantResult,
 } from "@/lib/admin/entitlements";
 import { enqueueEmail, flushOutbox } from "@/lib/email/outbox";
-import { ensureInvoiceRow, issueForOrder, voidForOrder } from "@/lib/invoice/issue";
+import { voidForOrder } from "@/lib/invoice/issue";
 import { canReverseCharge, reverseCharge } from "@/lib/payment/blackcat";
 import { orderPaidEmail } from "@/lib/email/templates";
 import { createServiceClient } from "@/lib/supabase/server";
@@ -313,10 +313,11 @@ async function transitionOrder(
   /*
     9) 電子發票。
 
-    轉成 paid → 建立待開立列並立刻試開一次。ensureInvoiceRow 與 issueForOrder
-       都是冪等的，所以「客服先按、APN 後到」兩條路都跑過也只會有一張發票。
+    🔴 轉成 paid 時**不再**自動建立待開立列、也不再試開（2026-10-15 指示：
+       先不開發票）。要開的話到訂單頁按「補開發票」，那是人按的。
 
-    轉成 refunded → 作廢發票。
+    轉成 refunded → 作廢發票。這條留著：歷史上已經開出去的發票，退款時還是
+       得作廢；沒有發票的訂單它是 no-op，不會有副作用。
        ⚠️ 作廢失敗**不擋退款**：訂單狀態已經改完了，這裡再 throw 只會讓客服
           看到一個失敗訊息卻不知道退款到底有沒有成功。失敗的訊息會併進下面的
           警告一起回去。
@@ -325,15 +326,7 @@ async function transitionOrder(
   */
   let invoiceNote = "";
   try {
-    if (to === "paid") {
-      if (await ensureInvoiceRow(orderId)) {
-        const out = await issueForOrder(orderId);
-        if (out.status === "failed") {
-          invoiceNote = `發票開立失敗（${out.reason}），可稍後重試。`;
-          console.error("[orders/transition] 開立發票失敗", orderId, out.reason);
-        }
-      }
-    } else if (to === "refunded") {
+    if (to === "refunded") {
       const voided = await voidForOrder(orderId, "訂單退款");
       if (!voided.ok) {
         invoiceNote = `發票作廢失敗（${voided.reason}），請到 Amego 後台手動處理。`;

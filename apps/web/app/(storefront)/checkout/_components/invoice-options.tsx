@@ -190,7 +190,11 @@ export function InvoiceOptions({
       </div>
 
       <p className="mt-[16px] text-[16px] leading-[1.8] text-brown-500">
-        發票會在付款完成後開立，並寄到你上面填的 Email。
+        {/* 2026-10-15：自動開票已移除，不能再寫「付款完成後開立」。
+            這裡還是照收載具與統編 —— 之後人工開票要用，而且客人填過一次
+            就不必再問一次。 */}
+        發票我們會另外開立，開好之後寄到你上面填的 Email。抬頭或統編要改，
+        用 LINE 跟我們說就好。
       </p>
     </fieldset>
   );

@@ -12,11 +12,13 @@ import {
  * 訂單的電子發票面板。
  *
  * 這一區要回答兩個問題：「這筆有沒有開發票」以及「沒開的話卡在哪」。
- * 開票是刻意設計成「失敗不擋付款」的附帶動作，所以一定會有一批訂單卡住 ——
- * 卡住的原因必須看得見，不然客服只能請工程師去撈 log。
+ *
+ * 🔴 2026-10-15 起**自動開票已經移除**（付款、後台標記付款、每日排程三條路
+ *    都不開了）。所以「已付款但沒有發票」變成**正常狀態**而不是異常 ——
+ *    紅字警示只留給「開到一半卡住」的，掛在每一頁等於沒有警示。
  *
  * ⚠️ 顯示層藏按鈕只是體貼，不是保護。兩支 action 都自己驗權限。
- * ⚠️ 「補開發票」按下去走的是跟自動流程完全一樣的路（含 DB claim），
+ * ⚠️ 「補開發票」按下去會自己建待開立列再開（含 DB claim），
  *    連按兩下不會開出兩張。防重複是靠資料庫，不是靠這裡的 disabled。
  */
 
@@ -92,8 +94,12 @@ export function OrderInvoicePanel({
   const inv = info.invoice;
   const isPaid = info.orderStatus === "paid";
 
-  // 「已付款、但還沒開出發票」＝ 客人拿不到稅務憑證。這是要吵的狀態。
-  const missing = isPaid && (!inv || (inv.status !== "issued" && inv.status !== "voided"));
+  // 開到一半卡住：有待開立／開立中的列，但沒走到 issued 或 voided。
+  // 這是真的要吵的狀態 —— 有人（或以前的自動流程）起了頭卻沒結束。
+  const stuck =
+    isPaid && !!inv && inv.status !== "issued" && inv.status !== "voided";
+  // 已付款但根本沒有發票列。自動開票移除之後這是常態，用灰字陳述就好。
+  const notIssuedYet = isPaid && !inv;
 
   async function doVoid() {
     setVoiding(true);
@@ -109,23 +115,25 @@ export function OrderInvoicePanel({
       <h2 className="mb-3 text-[16px] font-medium text-ink">電子發票</h2>
 
       {/* --- 最重要的一句話放最上面 --- */}
-      {missing && (
+      {stuck && (
         <p className="mb-3 rounded-card border border-danger bg-paper px-4 py-3 text-[14px] leading-relaxed text-danger">
-          <strong>這筆訂單已收款，但發票還沒開出來。</strong>
+          <strong>這筆訂單已收款，發票開到一半卡住了。</strong>
           <br />
-          {!inv
-            ? "系統裡沒有待開立的紀錄，請按下面的「補開發票」建立並開立。"
-            : inv.status === "issuing"
-              ? "正在開立中。如果超過 10 分鐘還是這個狀態，按「補開發票」會自動反查 Amego 認回，不會重複開。"
-              : inv.retryCount >= 8
-                ? "自動重試已經用完。請先看下面的錯誤訊息把資料改對，再按「補開發票」。"
-                : "系統會自動重試。想立刻處理的話按「補開發票」。"}
+          {inv?.status === "issuing"
+            ? "正在開立中。如果超過 10 分鐘還是這個狀態，按「補開發票」會自動反查 Amego 認回，不會重複開。"
+            : "不會自動重試了。請先看下面的錯誤訊息把資料改對，再按「補開發票」。"}
+        </p>
+      )}
+
+      {notIssuedYet && (
+        <p className="mb-3 text-[14px] leading-relaxed text-ink-soft">
+          這筆還沒開發票。自動開票已經關掉了，要開的話按下面的「補開發票」。
         </p>
       )}
 
       {!isPaid && (
         <p className="mb-3 text-[14px] text-ink-soft">
-          這筆訂單還沒收款，發票會在付款完成後自動開立。
+          這筆訂單還沒收款。發票不會自動開立，收款之後要人工按「補開發票」。
         </p>
       )}
 

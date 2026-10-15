@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { grantEntitlementsForOrder } from "@/lib/admin/entitlements";
-import { ensureInvoiceRow, issueForOrder } from "@/lib/invoice/issue";
 import {
   APN_STATUS,
   APN_STATUS_LABEL,
@@ -386,24 +385,20 @@ export async function POST(request: Request) {
   const grant = await grantEntitlementsForOrder(order.id);
 
   /*
-    電子發票。刻意放在開通課程**之後**、而且整段包在自己的 try 裡：
-    錢已經收了、課要開通，發票開不出來絕不可以讓這支 APN 回非 200 ——
-    那會讓黑貓 PAY 每 15 分鐘重送，而重送不會讓發票變得開得出來。
+    🔴 自動開立電子發票已移除（2026-10-15 指示：先不開發票）。
 
-    ensureInvoiceRow 是冪等的（unique amego_order_id），所以客服先手動標記過、
-    APN 再進來的情況重複呼叫也安全。
-    issueForOrder 內部有 claim，不會因為兩條路都跑而開出兩張。
+    這裡原本在付款成功後呼叫 ensureInvoiceRow() + issueForOrder()，讓客人
+    刷卡完就拿到發票。整段拿掉 —— **收款不再觸發任何開票動作**，連「待開立」
+    那一列都不會建。
+
+    還留著的只有人按的那條：後台訂單頁的「補開發票／作廢發票」
+    （app/admin/orders/invoice-actions.ts）。
+
+    要恢復自動開票的話，這裡改回 ensureInvoiceRow(order.id) +
+    issueForOrder(order.id)，並且把 api/cron/daily 的 flushInvoices()
+    與 admin/orders/actions.ts 轉 paid 時的那段一起加回來 —— 三個地方要一起，
+    少一個會變成「開得出來但失敗了不會重試」。
   */
-  try {
-    if (await ensureInvoiceRow(order.id)) {
-      const out = await issueForOrder(order.id);
-      if (out.status === "failed") {
-        console.error("[blackcat/apn] 開立發票失敗（不影響付款）", orderNo, out.reason);
-      }
-    }
-  } catch (err) {
-    console.error("[blackcat/apn] 發票流程例外（不影響付款）", orderNo, err);
-  }
 
   // 🔴 工作坊名額同步。只有這次真的把訂單從 pending 改成 paid 才做，
   //    否則客服先手動標記過、APN 再進來就會重複加一次。

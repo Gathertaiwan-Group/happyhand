@@ -44,9 +44,12 @@ async function orderNoOf(orderId: string): Promise<string> {
 /**
  * 補開發票。
  *
- * 🔴 這支**不會**直接呼叫 Amego —— 它走跟自動流程完全一樣的 issueForOrder()，
- *    也就是同樣要先拿 claim、同樣會在 issue_attempts > 1 時先反查。
- *    客服連按兩下不會開出兩張，這是靠 DB 的 claim 保證的，不是靠按鈕 disabled。
+ * 🔴 2026-10-15 自動開票移除之後，**這是站上唯一會開出發票的路**（另一條是
+ *    退款時的作廢）。付款、後台標記付款、每日排程都不再開票了。
+ *
+ * 🔴 這支**不會**直接呼叫 Amego —— 它走 issueForOrder()，所以同樣要先拿
+ *    claim、同樣會在 issue_attempts > 1 時先反查。客服連按兩下不會開出兩張，
+ *    這是靠 DB 的 claim 保證的，不是靠按鈕 disabled。
  */
 export async function reissueInvoice(orderId: string): Promise<InvoiceActionResult> {
   let staff;

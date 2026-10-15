@@ -387,7 +387,15 @@ export async function voidInvoice(
   return { ok: true };
 }
 
-/** 給客人下載發票 PDF 的網址。 */
+/**
+ * 給客人下載發票 PDF 的網址。
+ *
+ * 🔴 這裡**不能**用 BASE_URL。BASE_URL 在正式站會指到 Railway 中繼，而中繼
+ *    只放行 /json/c0401、/json/f0501、/json/invoice_query 三條路徑、而且要帶
+ *    x-proxy-token —— 把中繼網址交給客人的瀏覽器只會拿到 404 或 401。
+ *    固定 IP 是為了讓**我們的伺服器**過 Amego 的白名單，客人下載 PDF 不走
+ *    那條路，直接連官方網域就好。
+ */
 export function invoicePdfUrl(invoiceNumber: string): string {
-  return `${BASE_URL}/invoice/pdf/${encodeURIComponent(invoiceNumber)}`;
+  return `${AMEGO_OFFICIAL}/invoice/pdf/${encodeURIComponent(invoiceNumber)}`;
 }

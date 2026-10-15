@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { createClient, hasSupabaseEnv } from "@/lib/supabase/server";
 import { can, toRole, isStaffRole, type Capability, type Role } from "@/lib/admin/roles";
+import { machineActor } from "@/lib/admin/machine";
 
 /**
  * 後台授權。
@@ -22,9 +23,24 @@ import { can, toRole, isStaffRole, type Capability, type Role } from "@/lib/admi
  */
 
 export type Staff = {
+  /**
+   * auth.users 的 id。
+   * 🔴 機器身分（MCP）是空字串 —— 它不是一個人。audit_log.actor_id 有 FK
+   *    指向 auth.users，所以 writeAudit() 會把空字串寫成 null。
+   */
   id: string;
   email: string | null;
   role: Role;
+  /** 非 cookie 身分的來源標記，目前只有 "mcp"。人類身分一律 undefined。 */
+  via?: "mcp";
+  /**
+   * 機器身分專用的能力白名單，有值時**取代**角色推導。
+   *
+   * 為什麼不是直接給一個角色：MCP 需要的能力橫跨 support 與 editor，
+   * 聯集只有 owner 蓋得住，而 owner 會順便把 staff:manage 給出去 ——
+   * 那會讓一個可撤銷的 token 變成可以自己加管理員的永久後門。
+   */
+  caps?: readonly Capability[];
 };
 
 export class AdminAuthError extends Error {
@@ -47,6 +63,16 @@ export class AdminAuthError extends Error {
  * cache 的存活範圍就是單一次請求，不會跨使用者汙染。
  */
 export const getStaff = cache(async function getStaff(): Promise<Staff | null> {
+  /*
+    機器身分優先（MCP）。放在最前面是因為後面第一行就要 await cookies()，
+    而程式化入口根本沒有 cookie。
+
+    ⚠️ 這整支被 React.cache() 包著、範圍是單一次請求，所以呼叫端必須在
+       **第一次**呼叫 getStaff() 之前就進入 runAsMachine() 的 scope。
+  */
+  const machine = machineActor();
+  if (machine) return machine;
+
   if (!hasSupabaseEnv()) return null;
 
   try {
@@ -90,10 +116,18 @@ export async function requireCapability(cap: Capability): Promise<Staff> {
   if (!staff) {
     throw new AdminAuthError("請先登入", "unauthenticated");
   }
-  if (!can(staff.role, cap)) {
+  if (!hasCapability(staff, cap)) {
     throw new AdminAuthError("你的帳號沒有這項權限", "forbidden");
   }
   return staff;
+}
+
+/**
+ * 這個身分有沒有這項能力。
+ * 機器身分用自己的白名單，人類身分照角色推導。
+ */
+function hasCapability(staff: Staff, cap: Capability): boolean {
+  return staff.caps ? staff.caps.includes(cap) : can(staff.role, cap);
 }
 
 /**
@@ -102,7 +136,7 @@ export async function requireCapability(cap: Capability): Promise<Staff> {
  */
 export async function checkCapability(cap: Capability): Promise<Staff | null> {
   const staff = await getStaff();
-  if (!staff || !can(staff.role, cap)) return null;
+  if (!staff || !hasCapability(staff, cap)) return null;
   return staff;
 }
 

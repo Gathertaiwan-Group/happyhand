@@ -36,9 +36,15 @@ export async function writeAudit(staff: Staff, input: AuditInput): Promise<void>
   try {
     const supabase = createServiceClient();
     const { error } = await supabase.from("audit_log").insert({
-      actor_id: staff.id,
+      /*
+        🔴 空字串要寫成 null。actor_id 有 FK 指向 auth.users，而機器身分
+           （MCP）不是一個人、沒有帳號。塞假值會違反外鍵，而這支刻意永不
+           throw —— 結果會是「退款成功但稽核完全沒留下」。
+      */
+      actor_id: staff.id === "" ? null : staff.id,
       actor_email: staff.email,
-      actor_role: staff.role,
+      // 機器做的就寫 "mcp"，稽核頁才分得出來是人按的還是 AI 按的。
+      actor_role: staff.via ?? staff.role,
       action: input.action,
       entity: input.entity,
       entity_id: input.entityId ?? null,

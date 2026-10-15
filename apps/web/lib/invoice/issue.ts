@@ -73,9 +73,10 @@ function invoiceAmount(o: OrderForInvoice): number {
 /**
  * 訂單付款後建立一列待開立的發票。
  *
- * 冪等靠 invoices.amego_order_id 的 unique（= order_no）。重複呼叫是安全的，
- * 所以 APN 與後台手動標記兩條路都可以無條件呼叫它 —— 那兩條路對同一張訂單
- * 都跑過是正常情況（客服先按、APN 後到）。
+ * 冪等靠 invoices.amego_order_id 的 unique（= order_no）。重複呼叫是安全的。
+ *
+ * 🔴 2026-10-15 起唯一的呼叫者是後台的「補開發票」（人按的）。原本 APN 與
+ *    後台標記付款也會叫它，那兩條已經移除。
  *
  * ⚠️ 這支永不 throw。開票失敗不可以擋住付款流程 —— 錢已經收了，課程要開通，
  *    發票晚一點補開就好。回傳值只是給呼叫端記 log 用。
@@ -321,11 +322,11 @@ async function failIssue(
 /* ------------------------------------------------------------------ 批次 */
 
 /**
- * 把到期的待開立發票跑一輪。給 /api/cron/daily 用。
+ * 把到期的待開立發票跑一輪。
  *
- * ⚠️ 這個站的 Vercel 是 Hobby 方案，cron 一天只跑一次（01:00）。所以真正讓
- *    客人準時拿到發票的是付款當下那次 after() 立即嘗試，這支是補網 ——
- *    專門接住「當下失敗、或 Amego 剛好在維護」的那些。
+ * 🔴 2026-10-15 起**沒有呼叫者**。原本是 /api/cron/daily 每天跑一次的失敗
+ *    重試，自動開票移除時一起拿掉了。留著是為了恢復時不必重寫，不是還在跑。
+ *    恢復方式見 api/payments/blackcat/apn/route.ts 的註解。
  */
 export async function flushInvoices(limit = 20): Promise<{
   attempted: number;
@@ -379,9 +380,9 @@ export async function flushInvoices(limit = 20): Promise<{
 export async function voidForOrder(
   orderId: string,
   reason: string,
-): Promise<{ ok: true } | { ok: false; reason: string }> {
-  if (!isAmegoConfigured()) return { ok: false, reason: "Amego 未設定" };
-
+): Promise<
+  { ok: true } | { ok: false; reason: string; nothingToVoid?: boolean }
+> {
   const db = createServiceClient();
 
   const { data: inv } = await db
@@ -390,10 +391,38 @@ export async function voidForOrder(
     .eq("order_id", orderId)
     .maybeSingle();
 
-  if (!inv) return { ok: false, reason: "這張訂單沒有發票紀錄。" };
-  if (inv.status === "voided") return { ok: false, reason: "這張發票已經作廢過了。" };
+  /*
+    🔴 「沒有東西可以作廢」不是失敗，要跟「作廢真的失敗了」分開。
+
+    退款流程（admin/orders/actions.ts 的 transitionOrder）會無條件呼叫這支，
+    而 2026-10-15 移除自動開票之後，**絕大多數訂單本來就沒有發票**。把這種
+    情況當成錯誤的話，transitionOrder 會回 { error }，連帶讓
+    markRefundedManually 的 `if (!out.error)` 永遠不成立 —— 那筆
+    `order.refunded_manual` 稽核就靜默消失，而它是事後對帳分辨「系統退的
+    還是人手動退的」唯一依據。
+
+    所以這三種回 nothingToVoid，呼叫端自己決定要不要吵。
+    後台「作廢這張發票」按鈕仍然會把 reason 原字顯示出來（那裡是人主動按的，
+    講清楚為什麼沒作廢成才有意義）。
+  */
+  if (!inv) {
+    return { ok: false, nothingToVoid: true, reason: "這張訂單沒有發票紀錄。" };
+  }
+  if (inv.status === "voided") {
+    return { ok: false, nothingToVoid: true, reason: "這張發票已經作廢過了。" };
+  }
   if (inv.status !== "issued" || !inv.invoice_number) {
-    return { ok: false, reason: "這張發票還沒開立成功，沒有東西可以作廢。" };
+    return {
+      ok: false,
+      nothingToVoid: true,
+      reason: "這張發票還沒開立成功，沒有東西可以作廢。",
+    };
+  }
+
+  // 真的有一張開出去的發票要作廢。到這裡沒有憑證就是**真的**失敗 ——
+  // 客人手上有稅務憑證而我們動不了它，這必須吵。
+  if (!isAmegoConfigured()) {
+    return { ok: false, reason: "Amego 憑證沒設定，作廢不了。" };
   }
 
   const res = await voidInvoice(inv.invoice_number as string, reason);

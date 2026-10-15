@@ -5,6 +5,7 @@ import { requireCapability, adminErrorMessage } from "@/lib/admin/guard";
 import { writeAudit } from "@/lib/admin/audit";
 import { createServiceClient } from "@/lib/supabase/server";
 import { ensureInvoiceRow, issueForOrder, voidForOrder } from "@/lib/invoice/issue";
+import { isAmegoConfigured } from "@/lib/invoice/amego";
 
 /**
  * 發票的人工補救動作。
@@ -59,6 +60,21 @@ export async function reissueInvoice(orderId: string): Promise<InvoiceActionResu
     return { error: adminErrorMessage(err) };
   }
 
+  /*
+    🔴 憑證沒設就直接回，不要先建列。
+
+    ensureInvoiceRow() 自己不看憑證，照樣會 insert 一列 pending；接著
+    issueForOrder() 第一行就因為沒憑證回 skipped。結果是留下一列
+    pending/retry_count=0/last_error=null —— 面板會翻成紅字「開到一半卡住，
+    請看下面的錯誤訊息」但根本沒有錯誤訊息可看，30 分鐘後還會被
+    count_invoice_alerts 算成警示，而且沒有任何 UI 清得掉。
+
+    按一下就留下一個永久紅字，不如在這裡擋住。
+  */
+  if (!isAmegoConfigured()) {
+    return { error: "系統還沒設定 Amego 憑證，現在開不了發票。" };
+  }
+
   try {
     // 訂單可能根本還沒有 invoices 列（舊訂單、或建立那一步失敗過）
     await ensureInvoiceRow(orderId);
@@ -94,7 +110,8 @@ export async function reissueInvoice(orderId: string): Promise<InvoiceActionResu
         in_flight: "正在開立中，請等 10 秒後重新整理看看。",
         retries_exhausted:
           "重試次數已用完。請先看下面的錯誤訊息把資料修正（例如統編或載具），再按一次。",
-        not_due: "還在等下一次重試的時間，稍後會自動再試一次。",
+        // 自動重試已經移除，next_attempt_at 現在只是「再按一次」的冷卻時間
+        not_due: "上次失敗後還在冷卻時間內，稍等一下再按一次。",
         no_invoice_row: "這張訂單沒有待開立的發票紀錄，可能還沒付款。",
         amego_not_configured: "系統還沒設定 Amego 憑證，開不了發票。",
       };

@@ -100,6 +100,13 @@ export function OrderInvoicePanel({
     isPaid && !!inv && inv.status !== "issued" && inv.status !== "voided";
   // 已付款但根本沒有發票列。自動開票移除之後這是常態，用灰字陳述就好。
   const notIssuedYet = isPaid && !inv;
+  /*
+    已退款、發票卻還是「已開立」＝ 作廢沒成功，客人手上有一張該作廢而沒作廢
+    的稅務憑證。這是整個面板最該吵的一格，而它以前完全不吵 —— stuck 與
+    notIssuedYet 都要求 isPaid，refunded 時兩個都是 false。
+  */
+  const refundedButIssued =
+    info.orderStatus === "refunded" && inv?.status === "issued";
 
   async function doVoid() {
     setVoiding(true);
@@ -131,9 +138,23 @@ export function OrderInvoicePanel({
         </p>
       )}
 
-      {!isPaid && (
+      {refundedButIssued && (
+        <p className="mb-3 rounded-card border border-danger bg-paper px-4 py-3 text-[14px] leading-relaxed text-danger">
+          <strong>這筆訂單已退款，發票卻還是「已開立」。</strong>
+          <br />
+          客人手上有一張該作廢而沒作廢的稅務憑證，請按下面的「作廢這張發票」。
+        </p>
+      )}
+
+      {/* 「還沒收款」這句以前被 pending／cancelled／refunded 三種狀態共用，
+          對已退款的訂單是錯的，而且還會叫客服去幫一張退掉的訂單開發票。 */}
+      {!isPaid && !refundedButIssued && (
         <p className="mb-3 text-[14px] text-ink-soft">
-          這筆訂單還沒收款。發票不會自動開立，收款之後要人工按「補開發票」。
+          {info.orderStatus === "refunded"
+            ? "這筆訂單已退款。"
+            : info.orderStatus === "cancelled"
+              ? "這筆訂單已取消，不會有發票。"
+              : "這筆訂單還沒收款。發票不會自動開立，收款之後要人工按「補開發票」。"}
         </p>
       )}
 
@@ -189,8 +210,10 @@ export function OrderInvoicePanel({
             <dd className="text-danger">
               {inv.lastError}
               <span className="mt-1 block text-[13px] text-ink-soft">
+                {/* 不會自動重試了。next_attempt_at 現在只是「再按一次」的冷卻時間，
+                    寫成「下次自動重試」會跟上面那句紅字直接打對台。 */}
                 已重試 {inv.retryCount} 次
-                {inv.nextAttemptAt ? `，下次自動重試 ${inv.nextAttemptAt}` : ""}
+                {inv.nextAttemptAt ? `，${inv.nextAttemptAt} 之後才能再按一次` : ""}
               </span>
             </dd>
           </>

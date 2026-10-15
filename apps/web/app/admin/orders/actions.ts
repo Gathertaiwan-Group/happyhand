@@ -317,7 +317,11 @@ async function transitionOrder(
        先不開發票）。要開的話到訂單頁按「補開發票」，那是人按的。
 
     轉成 refunded → 作廢發票。這條留著：歷史上已經開出去的發票，退款時還是
-       得作廢；沒有發票的訂單它是 no-op，不會有副作用。
+       得作廢。
+       🔴 沒有發票可作廢時 voidForOrder 會回 nothingToVoid —— **那不是失敗**，
+          必須吞掉。不吞的話每一筆退款都會回 { error }，而
+          markRefundedManually 的 `if (!out.error)` 就永遠不成立，
+          `order.refunded_manual` 那筆稽核會靜默消失。
        ⚠️ 作廢失敗**不擋退款**：訂單狀態已經改完了，這裡再 throw 只會讓客服
           看到一個失敗訊息卻不知道退款到底有沒有成功。失敗的訊息會併進下面的
           警告一起回去。
@@ -328,7 +332,7 @@ async function transitionOrder(
   try {
     if (to === "refunded") {
       const voided = await voidForOrder(orderId, "訂單退款");
-      if (!voided.ok) {
+      if (!voided.ok && !voided.nothingToVoid) {
         invoiceNote = `發票作廢失敗（${voided.reason}），請到 Amego 後台手動處理。`;
         console.error("[orders/transition] 作廢發票失敗", orderId, voided.reason);
       }
@@ -345,8 +349,9 @@ async function transitionOrder(
   // 這裡回 error 而不是靜默成功：客服看到訊息才會去補，
   // 靜默的話「付了錢看不到課」要等客人打 LINE 來罵才會發現。
   //
-  // 順序＝嚴重度。課程沒開通 > 名額沒同步 > 發票沒開：
-  // 前兩個客人當下就受影響，發票晚幾小時補開沒關係（而且會自動重試）。
+  // 順序＝嚴重度。課程沒開通 > 名額沒同步 > 發票作廢失敗：
+  // 前兩個客人當下就受影響。發票這一項現在只會在「真的有一張開出去的發票
+  // 卻作廢不掉」時出現 —— 沒有發票可作廢已經在上面吞掉了。
   if (grant?.warning) return { error: grant.warning };
   if (seatOutcome.warning) return { error: seatOutcome.warning };
   if (invoiceNote) return { error: invoiceNote };

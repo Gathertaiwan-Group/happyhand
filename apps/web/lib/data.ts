@@ -95,6 +95,13 @@ export async function getProduct(
       blocks: ((data.product_blocks ?? []) as ProductBlock[])
         .slice()
         .sort((a, b) => a.sort_order - b.sort_order),
+      /*
+        ⚠️ 這裡的場次**沒有**套 getWorkshopSessions() 那道「只留未來場次」的
+           過濾，過期梯次會原封不動帶出來。目前前台沒有任何一頁讀
+           product.sessions（/workshops/[slug] 走的是 getWorkshopSessions()），
+           所以不是線上問題；但哪天有人改用這一份來列場次，過期的梯次會從
+           這個出口漏回站上。要用的話記得自己濾。
+      */
       sessions: (data.workshop_sessions ?? [])
         .slice()
         .sort((a: { starts_at: string }, b: { starts_at: string }) =>
@@ -185,10 +192,14 @@ export async function getWorkshopSessions(): Promise<WorkshopRow[]> {
         界線取 starts_at 而不是 ends_at：課一開始就不該再收人，當天下午
         報名早上開始的課等於收了錢卻上不到。
 
-        ⚠️ 這個時間是 render 當下算的，而頁面有 revalidate = 300，所以最久
-           會晚五分鐘才消失。那個空窗由 /api/orders 的 checkSessionCapacity
-           用**同一條界線**擋下來 —— 兩邊的判準必須一致，否則又會出現
-           「頁面能按、結帳說不行」那種前後矛盾。
+        ⚠️ 這個時間是 render 當下算的，而頁面是 revalidate = 300 的 ISR，
+           也就是 stale-while-revalidate：過了 300 秒，**下一位**訪客拿到的
+           仍然是舊頁，重生在背景跑，再下一位才拿到新的。所以「五分鐘」是
+           下限不是上限，低流量時段可以更久，而且至少會有一位訪客看到帶著
+           「我要報名」的過期場次。
+           那個空窗由 /api/orders 的 checkSessionCapacity 用**同一條界線**
+           擋下來 —— 兩邊的判準必須一致，否則又會出現「頁面能按、結帳說
+           不行」那種前後矛盾。
       */
       .gte("starts_at", new Date().toISOString())
       .order("starts_at", { ascending: true });

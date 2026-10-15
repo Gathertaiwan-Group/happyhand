@@ -176,6 +176,21 @@ export async function getWorkshopSessions(): Promise<WorkshopRow[]> {
       .select("*, products!inner(slug,title,subtitle,price,is_published,asks_intake)")
       .eq("products.is_published", true)
       .in("status", ["open", "full"])
+      /*
+        🔴 只列還沒開始的場次。
+        沒有這一條的話，上完一個月的梯次還掛在首頁與 /workshops 上，旁邊
+        是一顆「我要報名」—— 2026-10-15 正式站上就是這樣（9/12、9/27 兩梯
+        早就上完還在賣）。
+
+        界線取 starts_at 而不是 ends_at：課一開始就不該再收人，當天下午
+        報名早上開始的課等於收了錢卻上不到。
+
+        ⚠️ 這個時間是 render 當下算的，而頁面有 revalidate = 300，所以最久
+           會晚五分鐘才消失。那個空窗由 /api/orders 的 checkSessionCapacity
+           用**同一條界線**擋下來 —— 兩邊的判準必須一致，否則又會出現
+           「頁面能按、結帳說不行」那種前後矛盾。
+      */
+      .gte("starts_at", new Date().toISOString())
       .order("starts_at", { ascending: true });
 
     if (error) {

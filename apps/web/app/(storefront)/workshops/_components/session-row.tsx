@@ -13,6 +13,8 @@ import { AddSessionButton } from "./add-session-button";
  *
  * 額滿（剩餘 <= 0）時 CTA 換成 sand-400 底、文案「已額滿・我要候補」，
  * 仍是可以點的連結（用 LINE 登記候補），不是 disabled。
+ *
+ * 剩餘名額只拿來判斷額滿，**不顯示數字**（見下方價格區塊的註解）。
  */
 export function SessionRow({
   session,
@@ -27,14 +29,13 @@ export function SessionRow({
 }) {
   const { month, day, weekday } = twDate(session.starts_at);
   // 扣掉未付款訂單佔住的位子，跟 /api/orders 的容量檢查用同一個定義
-  // （兩邊都以 workshop_holds() 為準），否則會出現「頁面說剩 4 位、
-  // 結帳卻說滿了」。
+  // （兩邊都以 workshop_holds() 為準）。數字本身不印出來了，但額滿與否
+  // 仍然要跟結帳算得一樣，否則會出現「頁面能按、結帳說滿了」。
   const remaining = Math.max(
     0,
     session.capacity - session.seats_taken - (session.held ?? 0),
   );
   const soldOut = remaining <= 0;
-  const almostFull = remaining <= 5;
 
   // lib/data.ts 的 twDate 目前會吐出「9月 月」與「12日」
   //（Intl zh-TW 的 numeric month/day 本身就帶單位，外面又加了一次）。
@@ -116,17 +117,15 @@ export function SessionRow({
         <span className="font-serif text-[23px] font-semibold text-caramel-ink md:text-[24px]">
           {formatPrice(session.price)}
         </span>
-        {soldOut ? (
+        {/*
+          🔴 不印剩餘名額（2026-10-15 指示）。小班制的課在開賣初期，「剩 16 位」
+             等於公告「目前沒有人報名」—— 本來想製造的稀缺感會反過來變成冷清的
+             證據。
+          額滿仍然要講：那是**狀態**不是數字，客人要知道按鈕為什麼變成候補。
+        */}
+        {soldOut && (
           <span className="block text-[16px] text-brown-300 md:mt-[4px]">
             已額滿
-          </span>
-        ) : (
-          <span
-            className={`block text-[16px] md:mt-[4px] ${
-              almostFull ? "text-caramel-ink" : "text-brown-500"
-            }`}
-          >
-            剩 {remaining} 位
           </span>
         )}
       </div>

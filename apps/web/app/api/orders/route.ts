@@ -501,6 +501,18 @@ async function checkSessionCapacity(
       if (s.status === "closed") {
         return `這一場工作坊已經停止報名了，請加我們的 LINE ${SITE.lineId}，我們幫你看看還有沒有位子。`;
       }
+      /*
+        🔴 已經開課的場次不能再收錢。
+
+        前台（lib/data.ts）現在只列 starts_at 還沒到的場次，但那擋不住已經
+        在購物車裡的：購物車存在 localStorage，上個月加進去的梯次今天照樣
+        按得下去。這裡是最後一道，界線跟前台同一條（starts_at vs 現在）。
+
+        select 從一開始就把 starts_at 撈出來了，只是沒有人用它。
+      */
+      if (new Date(s.starts_at).getTime() <= Date.now()) {
+        return `這一場工作坊已經開課了，請回工作坊頁面看看其他場次，或加我們的 LINE ${SITE.lineId}，我們幫你安排。`;
+      }
 
       const available = s.capacity - s.seats_taken - (pending.get(s.id) ?? 0);
       if (want > available) {

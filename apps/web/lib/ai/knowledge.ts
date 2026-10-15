@@ -89,7 +89,9 @@ export async function catalogText(): Promise<string> {
     return (
       `・${name}｜${m}${d}日（${weekday}）${timeRange(s.starts_at, s.ends_at)}` +
       `｜${s.location}｜${formatPrice(s.price)}` +
-      `｜${remaining > 0 ? `還剩 ${remaining} 位` : "已額滿（可用 LINE 候補）"}` +
+      // 與站上一致：只說得了報不了名，不說剩幾位（session-row.tsx 同樣規則）。
+      // 小幫手要是還會回「還剩 16 位」，等於從另一個出口把冷清講出去。
+      `｜${remaining > 0 ? "開放報名" : "已額滿（可用 LINE 候補）"}` +
       ` 網址：${base}/workshops/${s.slug}`
     );
   });

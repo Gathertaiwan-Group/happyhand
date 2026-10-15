@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireCapability, adminErrorMessage } from "@/lib/admin/guard";
-import { createServiceClient } from "@/lib/supabase/server";
+import { loadOrders, sanitizeSearch, type OrderListRow } from "./queries";
 import { DataList, type DataListColumn } from "@/components/admin/data-list";
 import { formatTaipei } from "@/components/admin/datetime-field";
 import { AdminField, AdminSelect } from "@/components/admin/admin-field";
@@ -26,21 +26,6 @@ import {
  */
 
 export const dynamic = "force-dynamic";
-
-/** 一次最多撈幾筆。超過的話畫面上會明講，不靜默截斷。 */
-const LIMIT = 100;
-
-type OrderListRow = {
-  id: string;
-  order_no: string;
-  status: string;
-  payment_method: string | null;
-  total: number;
-  price_unverified: boolean;
-  contact_name: string | null;
-  contact_phone: string | null;
-  created_at: string;
-};
 
 export default async function AdminOrdersPage({
   searchParams,
@@ -222,59 +207,6 @@ function ContactCell({ name, phone }: { name: string | null; phone: string | nul
   );
 }
 
-/* ------------------------------------------------------------------ 查詢 */
-
-async function loadOrders({
-  status,
-  paymentMethod,
-  search,
-}: {
-  status: string;
-  paymentMethod: string;
-  search: string;
-}): Promise<{ rows: OrderListRow[]; matched: number | null; error: string }> {
-  const empty = { rows: [] as OrderListRow[], matched: null };
-
-  let supabase: ReturnType<typeof createServiceClient>;
-  try {
-    supabase = createServiceClient();
-  } catch (err) {
-    console.error("[admin/orders] service client 建立失敗", err);
-    return { ...empty, error: "資料庫連線未設定，請聯絡工程師檢查伺服器環境變數。" };
-  }
-
-  try {
-    // count: "exact" 是為了知道「有沒有被 LIMIT 截掉」。
-    // 沒有它就只能靠「剛好回 100 筆」來猜，剛好 100 筆的時候會猜錯。
-    let query = supabase
-      .from("orders")
-      .select(
-        "id, order_no, status, payment_method, total, price_unverified, contact_name, contact_phone, created_at",
-        { count: "exact" },
-      )
-      .order("created_at", { ascending: false })
-      .limit(LIMIT);
-
-    if (status) query = query.eq("status", status);
-    if (paymentMethod) query = query.eq("payment_method", paymentMethod);
-    if (search) {
-      query = query.or(`order_no.ilike.%${search}%,contact_phone.ilike.%${search}%`);
-    }
-
-    const { data, error, count } = await query;
-    if (error) throw new Error(error.message);
-
-    return {
-      rows: (data ?? []) as OrderListRow[],
-      matched: typeof count === "number" ? count : null,
-      error: "",
-    };
-  } catch (err) {
-    console.error("[admin/orders] 訂單查詢失敗", err);
-    return { ...empty, error: "訂單讀取失敗。" };
-  }
-}
-
 /* ------------------------------------------------------------------ 工具 */
 
 function firstValue(value: string | string[] | undefined): string {
@@ -289,23 +221,6 @@ function pickOne(
 ): string {
   const raw = firstValue(value);
   return allowed.includes(raw) ? raw : "";
-}
-
-/**
- * 把搜尋字串洗成可以安全放進 PostgREST or= 運算式的內容。
- *
- * ⚠️ 這一段是必要的，不是保險。PostgREST 的 or= 是用逗號分隔條件、
- *    用小數點分隔「欄位.運算子.值」的**字串**語法，值沒有被參數化。
- *    使用者搜尋 `a,status.eq.paid` 就會多長出一個 OR 條件；
- *    搜尋 `*` 會變成萬用字元把整張表撈出來；
- *    括號會讓運算式解析失敗直接 500。
- *    所以這裡把所有在該語法裡有意義的字元換成空白。
- */
-function sanitizeSearch(raw: string): string {
-  return raw
-    .replace(/[,.()*%\\"'`:<>=!]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 /* ------------------------------------------------------------------ 版面 */

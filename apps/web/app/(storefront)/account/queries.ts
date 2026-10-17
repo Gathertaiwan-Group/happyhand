@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
-import { normalizeFormat, type SessionFormat } from "@/lib/session-format";
+import { normalizeFormat, placeText, type SessionFormat } from "@/lib/session-format";
 
 /**
  * 會員中心的資料層。
@@ -193,7 +193,7 @@ export type MyOrdersResult = { orders: MyOrder[]; error: string | null };
 
 const ORDER_SELECT =
   "id, order_no, status, payment_method, total, created_at, paid_at, shipping_address, note, " +
-  "order_items(qty, unit_price, products(title), workshop_sessions(starts_at, location))";
+  "order_items(qty, unit_price, products(title), workshop_sessions(starts_at, location, format))";
 
 function mapOrder(row: Record<string, unknown>): MyOrder {
   const rawItems = (row.order_items ?? []) as Record<string, unknown>[];
@@ -213,6 +213,7 @@ function mapOrder(row: Record<string, unknown>): MyOrder {
         item.workshop_sessions as Embedded<{
           starts_at: string | null;
           location: string | null;
+          format: string | null;
         }>,
       );
       return {
@@ -222,7 +223,11 @@ function mapOrder(row: Record<string, unknown>): MyOrder {
         qty: (item.qty as number) ?? 1,
         unitPrice: (item.unit_price as number) ?? 0,
         sessionStartsAt: session?.starts_at ?? null,
-        sessionLocation: session?.location ?? null,
+        // 在這裡就換成給客人看的那句（線上 →「線上上課」），訂單明細頁不用改。
+        // 以前照印 location，線上場次填了「ON LINE」就顯示「・ON LINE」。
+        sessionLocation: session
+          ? placeText(normalizeFormat(session.format), session.location) || null
+          : null,
       };
     }),
   };

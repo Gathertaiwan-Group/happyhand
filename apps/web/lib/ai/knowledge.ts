@@ -80,6 +80,16 @@ export async function catalogText(): Promise<string> {
       return bits.join("");
     });
 
+  /*
+    🔴 只有 type=workshop 的商品有 /workshops/[slug] 詳情頁。線上課程掛著實體
+       場次（例如讀脈入門課）的話，它的頁面在 /courses/[slug]。
+       以前這裡一律接 /workshops/ —— 小幫手每次介紹讀脈入門課的場次，都給客人
+       一個 404 的連結。前台的 /workshops 與首頁用的是同一套判斷（workshopSlugs）。
+  */
+  const workshopSlugs = new Set(
+    products.filter((p) => p.type === "workshop").map((p) => p.slug),
+  );
+
   const sessionLines = sessions.map((s) => {
     const { month, day, weekday } = twDate(s.starts_at);
     // twDate 目前會吐「9月 月」與「12日」，這裡做冪等正規化（與 session-row 同樣處理）
@@ -94,7 +104,7 @@ export async function catalogText(): Promise<string> {
       // 與站上一致：只說得了報不了名，不說剩幾位（session-row.tsx 同樣規則）。
       // 小幫手要是還會回「還剩 16 位」，等於從另一個出口把冷清講出去。
       `｜${remaining > 0 ? "開放報名" : "已額滿（可用 LINE 候補）"}` +
-      ` 網址：${base}/workshops/${s.slug}`
+      ` 網址：${base}/${workshopSlugs.has(s.slug) ? "workshops" : "courses"}/${s.slug}`
     );
   });
 

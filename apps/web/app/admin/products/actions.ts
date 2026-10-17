@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireCapability, adminErrorMessage } from "@/lib/admin/guard";
+import { requireCapability, adminErrorMessage, AdminAuthError } from "@/lib/admin/guard";
 import { writeAudit, diffOf } from "@/lib/admin/audit";
 import { createServiceClient } from "@/lib/supabase/server";
 import { parseYouTubeId } from "@/lib/youtube";
@@ -121,44 +121,63 @@ export async function upsertProduct(formData: FormData): Promise<void> {
     const isPublished = formData.get("is_published") === "on";
     const isFeatured = formData.get("is_featured") === "on";
 
-    const failTo = isNew ? "/admin/products/new" : `/admin/products/${id}`;
+    /*
+      🔴 新增時失敗要把 type 帶回去。
+
+      以前這裡是 `"/admin/products/new"`，沒有 `?type=`。新增頁靠 query 的 type
+      決定預設類型，拿不到就回到「線上課程」—— 所以建工作坊時只要碰到任何一個
+      驗證錯誤（最常見的是網址代稱撞名），回到頁面時類型下拉已經悄悄變成線上課程、
+      標題變成「新增課程」。管理員重填一次按送出，**建出來的是一門線上課**，
+      出現在 /admin/courses 而不是 /admin/workshops —— 從他的角度就是
+      「我明明建了工作坊，清單裡找不到」。
+
+      只在 type 是合法值時才帶，不要把使用者送來的任意字串反射回網址。
+    */
+    const failBase = isNew ? "/admin/products/new" : `/admin/products/${id}`;
+    const failTo = (msg: string) => {
+      const q = new URLSearchParams({ msg });
+      if (isNew && (PRODUCT_TYPES as readonly string[]).includes(typeRaw)) {
+        q.set("type", typeRaw);
+      }
+      return `${failBase}?${q}`;
+    };
 
     if (!(PRODUCT_TYPES as readonly string[]).includes(typeRaw)) {
-      destination = `${failTo}?msg=type_invalid`;
+      destination = failTo("type_invalid");
       return;
     }
     const type = typeRaw as ProductType;
 
     if (!isValidSlug(slug)) {
-      destination = `${failTo}?msg=slug_format`;
+      destination = failTo("slug_format");
       return;
     }
     if (!title) {
-      destination = `${failTo}?msg=title_required`;
+      destination = failTo("title_required");
       return;
     }
 
     const price = parseIntField(String(formData.get("price") ?? ""));
     if (price === undefined || price === null || price < 0) {
-      destination = `${failTo}?msg=price_invalid`;
+      destination = failTo("price_invalid");
       return;
     }
 
     const compareAt = parseIntField(String(formData.get("compare_at_price") ?? ""));
     if (compareAt === undefined) {
-      destination = `${failTo}?msg=compare_invalid`;
+      destination = failTo("compare_invalid");
       return;
     }
     // products_compare_at_price_sane check (compare_at_price is null or >= price)。
     // 不先擋的話資料庫會回一句 23514 的英文，員工只會看到「儲存失敗」。
     if (compareAt !== null && compareAt < price) {
-      destination = `${failTo}?msg=compare_invalid`;
+      destination = failTo("compare_invalid");
       return;
     }
 
     const sortOrder = parseIntField(String(formData.get("sort_order") ?? ""));
     if (sortOrder === undefined || sortOrder === null) {
-      destination = `${failTo}?msg=sort_invalid`;
+      destination = failTo("sort_invalid");
       return;
     }
 
@@ -209,8 +228,8 @@ export async function upsertProduct(formData: FormData): Promise<void> {
         // 23505 = unique_violation，這裡只可能是 products_slug_key。
         destination =
           error.code === "23505"
-            ? `${failTo}?msg=slug_taken`
-            : `${failTo}?msg=failed`;
+            ? failTo("slug_taken")
+            : failTo("failed");
         if (error.code !== "23505") {
           console.error("[admin/products] 建立商品失敗", error);
         }
@@ -244,7 +263,7 @@ export async function upsertProduct(formData: FormData): Promise<void> {
 
     if (beforeError) {
       console.error("[admin/products] 讀取商品失敗", beforeError);
-      destination = `${failTo}?msg=failed`;
+      destination = failTo("failed");
       return;
     }
     if (!before) {
@@ -255,7 +274,7 @@ export async function upsertProduct(formData: FormData): Promise<void> {
     const { error } = await db.from("products").update(payload).eq("id", id);
     if (error) {
       destination =
-        error.code === "23505" ? `${failTo}?msg=slug_taken` : `${failTo}?msg=failed`;
+        error.code === "23505" ? failTo("slug_taken") : failTo("failed");
       if (error.code !== "23505") {
         console.error("[admin/products] 更新商品失敗", error);
       }
@@ -307,10 +326,23 @@ export async function upsertProduct(formData: FormData): Promise<void> {
     destination = `/admin/products/${id}?msg=saved`;
   } catch (err) {
     console.error("[admin/products] upsertProduct 例外", err);
+    /*
+      🔴 只有真的是權限問題才說「沒有權限」。
+
+      以前這個 catch 不分青紅皂白一律回 `denied` —— 環境變數掛了、資料庫逾時、
+      任何非預期的例外，畫面上都寫「你的帳號沒有編輯課程的權限」。owner 看到這句
+      會去找人調權限，而真正壞的是系統。誤報的錯誤會把人送去找錯的人。
+    */
+    const code = err instanceof AdminAuthError ? "denied" : "failed";
     const id = String(formData.get("id") ?? "").trim();
-    destination = id
-      ? `/admin/products/${id}?msg=denied`
-      : "/admin/products/new?msg=denied";
+    if (id) {
+      destination = `/admin/products/${id}?msg=${code}`;
+    } else {
+      const q = new URLSearchParams({ msg: code });
+      const t = String(formData.get("type") ?? "").trim();
+      if ((PRODUCT_TYPES as readonly string[]).includes(t)) q.set("type", t);
+      destination = `/admin/products/new?${q}`;
+    }
   } finally {
     // redirect() 是靠丟例外實作的，寫在 try 裡會被自己的 catch 吃掉。
     redirect(destination);
@@ -746,7 +778,9 @@ export async function upsertSession(productId: string, formData: FormData): Prom
     destination = `/admin/products/${productId}?msg=session_saved#sessions`;
   } catch (err) {
     console.error("[admin/products] upsertSession 例外", err);
-    destination = `/admin/products/${productId}?msg=denied#sessions`;
+    // 同 upsertProduct：只有權限錯誤才說沒有權限，其他一律是儲存失敗。
+    const code = err instanceof AdminAuthError ? "denied" : "failed";
+    destination = `/admin/products/${productId}?msg=${code}#sessions`;
   } finally {
     redirect(destination);
   }

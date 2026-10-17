@@ -28,6 +28,7 @@ import {
   HealthNoticeSection,
 } from "../_components/content-sections";
 import { NoSessions } from "../_components/no-sessions";
+import { hasOnline, ONLINE_LINK_NOTE } from "@/lib/session-format";
 
 type PageProps = { params: Promise<{ slug: string }> };
 
@@ -44,6 +45,22 @@ const DEFAULT_NOTES = [
   "開課前七天跟我們說一聲，可以改期一次。",
   "額滿了還是可以用 LINE 登記候補，有人取消我們會通知你。",
   "膝蓋、腰不舒服都可以坐著做，現場有助教會陪你。",
+  "其他不確定的事，用 LINE 問我們，我們慢慢跟你講。",
+];
+
+/**
+ * 全部場次都是線上時的預設注意事項。
+ *
+ * 實體那一組有兩條在線上課是錯的：「工具跟講義都準備好了，你空手來就行」
+ * 與「現場有助教會陪你」。改期與候補的規則兩邊相同，照留。
+ * 🔴 第一條一定是連結怎麼來 —— 線上課沒有連結就上不了。
+ */
+const ONLINE_DEFAULT_NOTES = [
+  ONLINE_LINK_NOTE,
+  "用電腦或平板上課比較好，手機螢幕小，比較難看清楚老師的手勢。",
+  "找一個安靜、可以把手攤開的位置。膝蓋、腰不舒服都可以坐著做。",
+  "開課前七天跟我們說一聲，可以改期一次。",
+  "額滿了還是可以用 LINE 登記候補，有人取消我們會通知你。",
   "其他不確定的事，用 LINE 問我們，我們慢慢跟你講。",
 ];
 
@@ -96,7 +113,15 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
   const openSession = sessions.find(
     (s) => s.capacity - s.seats_taken - (s.held ?? 0) > 0,
   );
-  const venue = sessions[0];
+  /*
+    這門課的場次是不是全部線上。全線上就不給地圖、改用線上的注意事項。
+    沒有場次時兩個都是 false → 照實體的樣子顯示（跟以前一樣）。
+  */
+  const allOnline = sessions.length > 0 && sessions.every((s) => s.format === "online");
+  const anyOnline = sessions.some((s) => hasOnline(s.format));
+  // 🔴 地圖要取第一個「有實體成分」的場次，不能直接拿 sessions[0] ——
+  //    那可能是一場線上課，它的 location 是「ON LINE」或空字串。
+  const venue = sessions.find((s) => s.format !== "online");
   const address = venue?.address ?? SITE.address;
   const venueName = venue?.location ?? "好日子・台北教室";
   const mapHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
@@ -242,6 +267,33 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
       <section className="mx-auto max-w-maxw px-[20px] py-[32px] md:px-[40px] md:py-[48px]">
         <div className="flex flex-col gap-[24px] md:flex-row md:gap-[40px]">
           <div className="md:flex-1">
+            {allOnline ? (
+              /*
+                全線上：沒有地點、沒有地圖、沒有「用 LINE 問路」。
+                以前這一區一律印台北教室加 Google 地圖 —— 一門線上課的頁面上
+                附一張教室地圖，客人只會以為要親自到場。
+              */
+              <>
+                <h2 className="t-h3">上課方式</h2>
+                <p className="t-body mt-[10px] text-brown-500">線上上課（視訊）</p>
+                <p className="t-body mt-[4px] text-brown-500">{ONLINE_LINK_NOTE}</p>
+                <div className="mt-[16px] flex flex-col flex-wrap gap-[10px] md:flex-row">
+                  <a
+                    href={SITE.lineHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={buttonClass({
+                      variant: "outline",
+                      className: "w-full shrink-0 whitespace-nowrap md:w-auto",
+                    })}
+                  >
+                    用 LINE 問我們
+                    <span className="sr-only">（會開啟 LINE）</span>
+                  </a>
+                </div>
+              </>
+            ) : (
+              <>
             <h2 className="t-h3">上課地點</h2>
             <p className="t-body mt-[10px] text-brown-500">{venueName}</p>
             <p className="t-body mt-[4px] text-brown-500">{address}</p>
@@ -272,6 +324,14 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                 <span className="sr-only">（會開啟 LINE）</span>
               </a>
             </div>
+            {/* 有實體也有線上：地圖給實體場次用，另外講一句讓人知道可以選。 */}
+            {anyOnline && (
+              <p className="t-body-sm mt-[14px] text-brown-500">
+                這門課有可以線上參加的場次，場次旁有標籤的就是。{ONLINE_LINK_NOTE}
+              </p>
+            )}
+              </>
+            )}
           </div>
 
           <div className="md:flex-1">
@@ -284,7 +344,9 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               */}
               {(product.notes && product.notes.length > 0
                 ? product.notes
-                : DEFAULT_NOTES
+                : allOnline
+                  ? ONLINE_DEFAULT_NOTES
+                  : DEFAULT_NOTES
               ).map((t) => (
                 <li
                   key={t}

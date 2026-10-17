@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { normalizeFormat, type SessionFormat } from "@/lib/session-format";
 
 /**
  * 會員中心的資料層。
@@ -288,6 +289,8 @@ export type MyWorkshop = {
   endsAt: string | null;
   location: string | null;
   address: string | null;
+  /** 實體／線上／混合，已正規化（未指定 = 實體）。 */
+  format: SessionFormat;
   sessionStatus: string | null;
 };
 
@@ -314,7 +317,7 @@ export async function getMyWorkshops(): Promise<MyWorkshopsResult> {
       .from("orders")
       .select(
         "id, order_no, status, order_items(session_id, products(title), " +
-          "workshop_sessions(starts_at, ends_at, location, address, status))",
+          "workshop_sessions(starts_at, ends_at, location, address, format, status))",
       )
       .in("status", ["pending", "paid"])
       .order("created_at", { ascending: false });
@@ -341,6 +344,7 @@ export async function getMyWorkshops(): Promise<MyWorkshopsResult> {
             ends_at: string | null;
             location: string | null;
             address: string | null;
+            format: string | null;
             status: string | null;
           }>,
         );
@@ -355,6 +359,7 @@ export async function getMyWorkshops(): Promise<MyWorkshopsResult> {
           endsAt: session?.ends_at ?? null,
           location: session?.location ?? null,
           address: session?.address ?? null,
+          format: normalizeFormat(session?.format),
           sessionStatus: session?.status ?? null,
         };
 

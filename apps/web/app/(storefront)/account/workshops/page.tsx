@@ -11,12 +11,13 @@ import {
   StatusChip,
 } from "../_components/shell";
 import { formatSessionTime } from "../orders/shared";
+import { ONLINE_LINK_NOTE, placeText } from "@/lib/session-format";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "我報名的工作坊",
-  description: "你報名的實體工作坊場次、時間與地點。",
+  description: "你報名的工作坊場次、時間與地點。",
   robots: { index: false, follow: false },
 };
 
@@ -130,18 +131,36 @@ function WorkshopCard({
             {formatSessionTime(workshop.startsAt)}
           </dd>
         </div>
-        {workshop.location && (
+        {/*
+          線上場次：這一頁是付了錢的學員確認「我要怎麼上課」的地方。以前它照印
+          location —— 填「ON LINE」就印 ON LINE、留空就整欄消失，學員找不到任何
+          關於連結的說明。
+        */}
+        {workshop.format === "online" ? (
           <div className="flex flex-wrap gap-x-[10px]">
-            <dt className="t-body-sm w-[56px] shrink-0 text-brown-500">地點</dt>
+            <dt className="t-body-sm w-[56px] shrink-0 text-brown-500">方式</dt>
             <dd className="t-body min-w-0 text-brown-900">
-              {workshop.location}
-              {workshop.address && (
-                <span className="block text-[17px] text-brown-500">
-                  {workshop.address}
-                </span>
-              )}
+              線上（視訊）
+              <span className="block text-[17px] text-brown-500">{ONLINE_LINK_NOTE}</span>
             </dd>
           </div>
+        ) : (
+          workshop.location && (
+            <div className="flex flex-wrap gap-x-[10px]">
+              <dt className="t-body-sm w-[56px] shrink-0 text-brown-500">地點</dt>
+              <dd className="t-body min-w-0 text-brown-900">
+                {placeText(workshop.format, workshop.location)}
+                {workshop.address && (
+                  <span className="block text-[17px] text-brown-500">
+                    {workshop.address}
+                  </span>
+                )}
+                {workshop.format === "hybrid" && (
+                  <span className="block text-[17px] text-brown-500">{ONLINE_LINK_NOTE}</span>
+                )}
+              </dd>
+            </div>
+          )
         )}
         <div className="flex flex-wrap gap-x-[10px]">
           <dt className="t-body-sm w-[56px] shrink-0 text-brown-500">訂單</dt>

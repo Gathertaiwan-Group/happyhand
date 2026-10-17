@@ -10,6 +10,7 @@ import {
   orderCreatedEmail,
   type EmailSessionInfo,
 } from "@/lib/email/templates";
+import { normalizeFormat } from "@/lib/session-format";
 import { twDate, timeRange } from "@/lib/data";
 import { createCreditOrder, isBlackcatConfigured } from "@/lib/payment/blackcat";
 import {
@@ -817,7 +818,7 @@ async function loadSessionDetails(
     if (!db) return out;
     const { data, error } = await db
       .from("workshop_sessions")
-      .select("id,starts_at,ends_at,location,address")
+      .select("id,starts_at,ends_at,location,address,format")
       .in("id", wanted);
     if (error) {
       console.error("[orders] 讀場次明細失敗，確認信將不含上課資訊", error.message);
@@ -829,6 +830,7 @@ async function loadSessionDetails(
       ends_at: string;
       location: string | null;
       address: string | null;
+      format: string | null;
     }[]) {
       const { month, day, weekday } = twDate(row.starts_at);
       const m = month.replace(/\s+/g, "").replace(/月+$/, "月");
@@ -837,6 +839,8 @@ async function loadSessionDetails(
         when: `${m}${d}日（${weekday}）${timeRange(row.starts_at, row.ends_at)}`,
         location: row.location,
         address: row.address,
+        // 線上場次不寄地址（見 templates.ts）。未指定 = 實體。
+        format: normalizeFormat(row.format),
       });
     }
   } catch (err) {

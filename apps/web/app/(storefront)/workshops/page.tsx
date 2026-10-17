@@ -5,6 +5,7 @@ import { SITE } from "@/lib/site";
 import { getProducts, getWorkshopSessions } from "@/lib/data";
 import { SessionRow } from "./_components/session-row";
 import { NoSessions } from "./_components/no-sessions";
+import { hasOnline } from "@/lib/session-format";
 
 /** 與 /courses 一致的 ISR 週期。後台改動仍靠 revalidatePath 立即生效，
  *  這個值只是「就算沒人呼叫 revalidate，最久也就過期五分鐘」的保底。 */
@@ -43,6 +44,15 @@ export default async function WorkshopsPage() {
           <p className="t-body-lg text-brown-500">
             小班制，八到十個人，老師會一個一個看過去。工具跟講義都準備好了，你空手來就行。
           </p>
+          {/*
+            上面那句是實體課的品牌文案，保留。但只要列表裡有線上場次，「空手來就行」
+            就跟那一列打架 —— 補一句把兩種分開，而不是把品牌文案改成兩邊都不像。
+          */}
+          {sessions.some((s) => hasOnline(s.format)) && (
+            <p className="t-body text-brown-500">
+              標示「線上」的場次用視訊上課，上課連結會在開課前傳給你。
+            </p>
+          )}
           {/* 桌機沒有底部行動列，這裡補一個用 LINE 問的出口 */}
           <div className="hidden w-full pt-[8px] md:block md:w-auto">
             <a

@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { enqueueEmail } from "@/lib/email/outbox";
 import { workshopReminderEmail } from "@/lib/email/templates";
 import { twDate, timeRange } from "@/lib/data";
+import { normalizeFormat } from "@/lib/session-format";
 
 /**
  * 開課提醒 —— 開課前 3 天與前 1 天各寄一次。
@@ -81,6 +82,7 @@ type SessionRow = {
   ends_at: string;
   location: string | null;
   address: string | null;
+  format: string | null;
   products: { title: string } | null;
 };
 
@@ -141,7 +143,7 @@ export async function sendWorkshopReminders(opts?: {
 
     const { data: sessionData, error: sessionError } = await db
       .from("workshop_sessions")
-      .select("id,starts_at,ends_at,location,address,products(title)")
+      .select("id,starts_at,ends_at,location,address,format,products(title)")
       .gte("starts_at", taipeiDayStart(from, now).toISOString())
       .lt("starts_at", taipeiDayStart(to, now).toISOString())
       // 取消的場次不提醒。closed（額滿關閉報名）照樣提醒 —— 已經報名的人還是要上課。
@@ -218,6 +220,8 @@ export async function sendWorkshopReminders(opts?: {
           when: formatWhen(session.starts_at, session.ends_at),
           location: session.location,
           address: session.address,
+          // 線上場次整封提醒信的用詞都不一樣，而且不可以寄地址。
+          format: normalizeFormat(session.format),
           orderNo: order.order_no,
         }),
       });

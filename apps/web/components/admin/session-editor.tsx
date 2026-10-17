@@ -194,12 +194,18 @@ function SessionFields({
           hint="留空就用課程定價。填了以這裡為準，客人結帳時收的就是這個金額。"
         />
 
+        {/*
+          🔴 以前選了「線上」網站上一個字都不會變（前台沒讀這個欄位），管理員
+             存了又存也看不出差別。現在會生效了，所以要講清楚生效的是什麼、
+             以及系統**不會**做的那一件事（代寄連結）。
+        */}
         <AdminSelect
           id={`session-format-${scope}`}
           name="format"
           label="上課形式"
           defaultValue={session?.format ?? ""}
-          options={[{ value: "", label: "未指定" }, ...SESSION_FORMAT_CHOICES]}
+          options={[{ value: "", label: "未指定（當作實體）" }, ...SESSION_FORMAT_CHOICES]}
+          hint="選「線上」：網站標示線上、不顯示地點與地圖，信件也不寄地址，地點可以留空。上課連結系統不會代寄，請另外傳給已付款的學員。"
         />
 
         <AdminField
@@ -208,7 +214,7 @@ function SessionFields({
           label="梯次補充說明"
           maxLength={300}
           defaultValue={session?.notes ?? ""}
-          hint="例如「直播連結於開課前發送」。"
+          hint="會顯示在這門課的頁面上，所有人都看得到。不要把上課連結貼在這裡 —— 連結請另外傳給已付款的學員。"
         />
 
         <AdminSelect

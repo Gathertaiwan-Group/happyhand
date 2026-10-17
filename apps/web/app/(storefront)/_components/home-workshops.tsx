@@ -2,6 +2,7 @@ import { LinkButton } from "@/components/ui/button";
 import type { WorkshopRow } from "@/lib/data";
 import { SessionRow } from "@/app/(storefront)/workshops/_components/session-row";
 import { NoSessions } from "@/app/(storefront)/workshops/_components/no-sessions";
+import { hasOnline } from "@/lib/session-format";
 
 /** 首頁最多列幾個工作坊。超過的收進 /workshops，不要讓首頁變成場次表。 */
 const HOME_SESSION_LIMIT = 6;
@@ -69,6 +70,12 @@ export function HomeWorkshops({
           <p className="t-body mx-auto mt-[14px] max-w-[620px] text-pretty text-brown-500">
             小班制，八到十個人，老師會一個一個看過去。工具跟講義都準備好了，你空手來就行。
           </p>
+          {/* 同 /workshops：首頁列出的場次裡有線上的，才補這一句。 */}
+          {upcoming.some((s) => hasOnline(s.format)) && (
+            <p className="t-body mx-auto mt-[8px] max-w-[620px] text-pretty text-brown-500">
+              標示「線上」的場次用視訊上課，上課連結會在開課前傳給你。
+            </p>
+          )}
         </div>
 
         <div className="mt-[24px] md:mt-[36px]">

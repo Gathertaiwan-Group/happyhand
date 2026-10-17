@@ -1,6 +1,7 @@
 import "server-only";
 import { createPublicClient, hasSupabaseEnv } from "@/lib/supabase/server";
 import type { Product, WorkshopSession } from "@/lib/content";
+import { normalizeFormat, type SessionFormat } from "@/lib/session-format";
 
 /**
  * 資料讀取層。資料庫是唯一真相。
@@ -158,6 +159,11 @@ export type WorkshopRow = {
   ends_at: string;
   location: string;
   address: string;
+  /**
+   * 實體／線上／混合。未指定（null）已經在這裡正規化成 onsite ——
+   * 呼叫端不必再處理 null。見 lib/session-format.ts。
+   */
+  format: SessionFormat;
   capacity: number;
   seats_taken: number;
   /**
@@ -240,6 +246,7 @@ export async function getWorkshopSessions(): Promise<WorkshopRow[]> {
       ends_at: s.ends_at,
       location: s.location,
       address: s.address,
+      format: normalizeFormat(s.format),
       capacity: s.capacity,
       seats_taken: s.seats_taken,
       held: holds.get(s.id) ?? 0,

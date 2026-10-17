@@ -3,6 +3,7 @@ import { buttonClass } from "@/components/ui/button";
 import { SITE, formatPrice } from "@/lib/site";
 import { timeRange, twDate, type WorkshopRow } from "@/lib/data";
 import { AddSessionButton } from "./add-session-button";
+import { formatTag } from "@/lib/session-format";
 
 /**
  * 工作坊場次列。
@@ -49,8 +50,12 @@ export function SessionRow({
   // 梯次名稱優先於商品名。同一門課有好幾梯時（假日班／平日線上班），
   // 每列都印一樣的商品名，客人分不出差別。
   const headline = session.sessionTitle?.trim() || session.title;
-  // 場次時段，會跟著訂單一路顯示到購物車與訂單摘要
-  const sessionLabel = `${dateText} ${timeRange(session.starts_at, session.ends_at)}`;
+  // 線上／混合才有標籤。實體是預設，不標。
+  const tag = formatTag(session.format);
+  // 場次時段，會跟著訂單一路顯示到購物車與訂單摘要。線上場次要帶著標籤走 ——
+  // 客人在購物車裡看到的那一行，是他確認「我買的是線上那場」的最後機會。
+  const sessionLabel =
+    `${dateText} ${timeRange(session.starts_at, session.ends_at)}` + (tag ? `・${tag}` : "");
 
   // 沒有 id 就報不了名 —— /api/orders 用 UUID_RE 驗 sessionId，
   // 收到非 UUID 會當成「沒選場次」，訂單就不會綁到這一場、名額也不會扣。
@@ -66,11 +71,34 @@ export function SessionRow({
           : "min-w-0 text-[17px] leading-[1.8] text-brown-500 md:col-start-2 md:row-span-2 md:row-start-1"
       }
     >
-      {session.location}・{timeRange(session.starts_at, session.ends_at)}
+      {/*
+        純線上：不印 location。管理員可能填「ON LINE」也可能留空 ——
+        留空的話以前會印成「・09:00–17:00」，前面少一截。
+        混合：地點照印，標籤說明也能線上參加。
+      */}
+      {tag && (
+        <span className="mr-[8px] inline-block rounded-full bg-brown-900 px-[10px] align-[2px] text-[14px] leading-[1.7] font-medium text-white">
+          {tag}
+        </span>
+      )}
+      {session.format === "online"
+        ? timeRange(session.starts_at, session.ends_at)
+        : `${session.location}・${timeRange(session.starts_at, session.ends_at)}`}
       {session.sessionSummary?.trim() && (
         <>
           <br />
           <span className="text-brown-300">{session.sessionSummary}</span>
+        </>
+      )}
+      {/*
+        梯次補充說明。後台一直讓人填、提示也寫著「例如『直播連結於開課前發送』」，
+        但以前前台沒有任何地方顯示它 —— 又一個存了也看不到的欄位。
+        只在單場詳情頁（showTitle=false）顯示：列表與首頁要保持一列一行。
+      */}
+      {!showTitle && session.sessionNotes?.trim() && (
+        <>
+          <br />
+          <span className="text-brown-500">{session.sessionNotes}</span>
         </>
       )}
     </p>
@@ -162,7 +190,7 @@ export function SessionRow({
             price={session.price}
             sessionLabel={sessionLabel}
             asksIntake={session.asksIntake}
-            ariaLabel={`我要報名：${headline} ${dateText}`}
+            ariaLabel={`我要報名：${headline} ${dateText}${tag ? `（${tag}）` : ""}`}
           />
         )}
       </div>

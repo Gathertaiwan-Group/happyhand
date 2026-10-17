@@ -3,6 +3,7 @@ import "server-only";
 import { FAQS } from "@/lib/content";
 import { getProducts, getWorkshopSessions, twDate, timeRange } from "@/lib/data";
 import { SITE, formatPrice } from "@/lib/site";
+import { placeText } from "@/lib/session-format";
 
 /**
  * 小幫手的知識來源。
@@ -35,7 +36,7 @@ const FACTS = `你是「快樂手 Happy Healing Hands」官網右下角的線上
 
 【品牌】快樂手是教「仁神術（JSJ, Jin Shin Jyutsu）」的線上課程與實體工作坊平台，由好日子股份有限公司經營。
 【仁神術是什麼】一門源自日本的自我照顧方法，用雙手輕輕放在身上特定位置，幫助自己放鬆、覺察身體。不用力氣、不用器材、坐著就能做，很多同學是六十幾歲才開始學的。
-【上課方式】線上課程買了就永久回放，登入「我的學習」隨時看、可以重複看。工作坊是實體小班（八到十人），老師會一個一個看過去，工具跟講義都準備好，空手來就行。
+【上課方式】線上課程買了就永久回放，登入「我的學習」隨時看、可以重複看。工作坊大多是實體小班（八到十人），老師會一個一個看過去，工具跟講義都準備好，空手來就行。場次標示「線上」的是用視訊上課，上課連結會在開課前用 Email 或 LINE 傳給學員，沒有地址可以去。
 【付款】信用卡（線上刷卡）、ATM 匯款、或用 LINE 請我們代訂。ATM 匯款是結帳時選「ATM 匯款」會顯示帳號，我們對帳完成就開通。
 【買了怎麼看】網站右上角「我的學習」→ 用下單時填的 Email 登入 → 密碼是在「請設定密碼」那封信裡自己設定的。沒設定過或忘記，在登入頁按「忘記密碼？」。
 【課本】有實體課本的商品，付款完成後宅配寄出，通常三到五個工作天會到。
@@ -88,7 +89,8 @@ export async function catalogText(): Promise<string> {
     const name = s.sessionTitle?.trim() || s.title;
     return (
       `・${name}｜${m}${d}日（${weekday}）${timeRange(s.starts_at, s.ends_at)}` +
-      `｜${s.location}｜${formatPrice(s.price)}` +
+      // 線上場次印「線上上課」而不是 location（可能是「ON LINE」或空的）。
+      `｜${placeText(s.format, s.location)}｜${formatPrice(s.price)}` +
       // 與站上一致：只說得了報不了名，不說剩幾位（session-row.tsx 同樣規則）。
       // 小幫手要是還會回「還剩 16 位」，等於從另一個出口把冷清講出去。
       `｜${remaining > 0 ? "開放報名" : "已額滿（可用 LINE 候補）"}` +
@@ -99,7 +101,7 @@ export async function catalogText(): Promise<string> {
   return `【線上課程】
 ${courseLines.length ? courseLines.join("\n") : "・目前沒有開放購買的線上課程。"}
 
-【實體工作坊場次】
+【工作坊場次】
 ${sessionLines.length ? sessionLines.join("\n") : "・目前沒有開放報名的場次，請訪客用 LINE 詢問下一梯。"}`;
 }
 

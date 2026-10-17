@@ -2,6 +2,7 @@ import "server-only";
 
 import { SITE, formatPrice } from "@/lib/site";
 import type { EmailMessage } from "@/lib/email/resend";
+import { ONLINE_LINK_NOTE, placeText, type SessionFormat } from "@/lib/session-format";
 
 /**
  * 交易信版型。
@@ -118,6 +119,11 @@ export type EmailSessionInfo = {
   when: string;
   location: string | null;
   address: string | null;
+  /**
+   * 實體／線上／混合，已正規化（未指定 = 實體）。
+   * 🔴 線上場次不可以寄出地址 —— 客人會以為要親自到場。見 lib/session-format.ts。
+   */
+  format: SessionFormat;
 };
 
 export function orderCreatedEmail(input: {
@@ -140,8 +146,17 @@ export function orderCreatedEmail(input: {
   const sessionRows: [string, string][] = booked.flatMap(({ title, session }) => {
     const prefix = multi ? `${title}・` : "";
     const rows: [string, string][] = [[`${prefix}上課時間`, session.when]];
-    if (session.location) rows.push([`${prefix}上課地點`, session.location]);
-    if (session.address) rows.push([`${prefix}地址`, session.address]);
+    if (session.format === "online") {
+      // 純線上：不寄地點與地址（管理員可能填了「ON LINE」，照印只會更混亂）。
+      rows.push([`${prefix}上課方式`, "線上（視訊）"]);
+      rows.push([`${prefix}上課連結`, ONLINE_LINK_NOTE]);
+    } else {
+      if (session.location) {
+        rows.push([`${prefix}上課地點`, placeText(session.format, session.location)]);
+      }
+      if (session.address) rows.push([`${prefix}地址`, session.address]);
+      if (session.format === "hybrid") rows.push([`${prefix}線上參加`, ONLINE_LINK_NOTE]);
+    }
     return rows;
   });
   const sessionText =
@@ -221,28 +236,53 @@ export function workshopReminderEmail(input: {
   when: string;
   location: string | null;
   address: string | null;
+  /** 實體／線上／混合，已正規化。線上場次整封信的用詞都不一樣。 */
+  format: SessionFormat;
   orderNo: string;
 }): EmailMessage {
   const days = Math.max(0, input.daysAhead);
+  const online = input.format === "online";
   const subject = `${DAY_WORD[days] ?? `${days} 天後`}見：${input.title}`;
   const opening =
     days <= 1
-      ? `${days === 0 ? "今天" : "明天"}就是上課的日子了，這封信提醒你時間和地點。`
-      : `再過${COUNT_WORD[days] ?? days}天就要上課了，先把時間和地點提醒你一次。`;
+      ? `${days === 0 ? "今天" : "明天"}就是上課的日子了，這封信提醒你時間和${online ? "上課方式" : "地點"}。`
+      : `再過${COUNT_WORD[days] ?? days}天就要上課了，先把時間和${online ? "上課方式" : "地點"}提醒你一次。`;
 
   const rows: [string, string][] = [
     ["課程", input.title],
     ["時間", input.when],
   ];
-  if (input.location) rows.push(["地點", input.location]);
-  if (input.address) rows.push(["地址", input.address]);
+  /*
+    提醒信是開課前最後一封信。線上場次如果還沒拿到連結，這是客人唯一還來得及
+    補救的時間點 —— 所以不只說「會傳給你」，要直接叫他現在就跟我們說。
+  */
+  const LINK_CHASE = "上課連結會用 Email 或 LINE 傳給你。如果到現在還沒收到，請現在就用 LINE 跟我們說，我們馬上補給你。";
+  if (online) {
+    rows.push(["上課方式", "線上（視訊）"]);
+    rows.push(["上課連結", LINK_CHASE]);
+  } else {
+    if (input.location) rows.push(["地點", placeText(input.format, input.location)]);
+    if (input.address) rows.push(["地址", input.address]);
+    if (input.format === "hybrid") rows.push(["線上參加", LINK_CHASE]);
+  }
   rows.push(["訂單編號", input.orderNo]);
 
-  const tips = [
-    "穿寬鬆一點的衣服，比較好活動。",
-    "提前十分鐘到，可以先坐下來喘口氣。",
-    "膝蓋或腰不舒服都沒關係，現場有替代姿勢，也有助教陪著。",
-  ];
+  // 實體那一組有兩條在線上是錯的：「提前十分鐘到」「現場有助教陪著」。
+  const tips = online
+    ? [
+        "用電腦或平板上課比較好，手機螢幕小，比較難看清楚老師的手勢。",
+        "提前十分鐘點開連結，先確認聲音和畫面都正常。",
+        "找一個安靜、可以把手攤開的位置。膝蓋或腰不舒服都可以坐著做。",
+      ]
+    : [
+        "穿寬鬆一點的衣服，比較好活動。",
+        "提前十分鐘到，可以先坐下來喘口氣。",
+        "膝蓋或腰不舒服都沒關係，現場有替代姿勢，也有助教陪著。",
+      ];
+  const cantCome = online
+    ? "臨時有狀況不能參加，用 LINE 跟我們說一聲就好。"
+    : "臨時有狀況不能來，用 LINE 跟我們說一聲就好。";
+  const signOff = online ? "線上見。" : "課堂上見。";
 
   const text = `${input.name} 你好，
 
@@ -253,9 +293,9 @@ ${rows.map(([k, v]) => `${k}：${v}`).join("\n")}
 小提醒
 ${tips.map((t) => `・${t}`).join("\n")}
 
-臨時有狀況不能來，用 LINE 跟我們說一聲就好。
+${cantCome}
 
-課堂上見。${textFooter()}`;
+${signOff}${textFooter()}`;
 
   const html = layout(`
     ${paragraph(`${input.name} 你好，`)}
@@ -265,8 +305,8 @@ ${tips.map((t) => `・${t}`).join("\n")}
     <ul style="margin:0 0 18px;padding-left:20px;font-size:17px;line-height:1.9;color:${INK};">
       ${tips.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}
     </ul>
-    ${paragraph("臨時有狀況不能來，用 LINE 跟我們說一聲就好。")}
-    ${paragraph("課堂上見。")}
+    ${paragraph(cantCome)}
+    ${paragraph(signOff)}
   `);
 
   return { to: input.to, subject, text, html };

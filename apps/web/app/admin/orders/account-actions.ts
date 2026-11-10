@@ -255,7 +255,9 @@ export async function resendSetupEmail(
   //    要真的寄得出去，否則「我沒收到信」就無解了。
   //    濫用風險由 orders:write 這個能力本身控制（只有員工按得到）。
   const stamp = Math.floor(Date.now() / 1000);
-  await enqueueEmail({
+  // 🔴 排不進 outbox 就是沒寄。以前不看回傳值，排入失敗也回「已重寄」。
+  //    MCP 的重寄冷卻也是讀這一列（lib/admin/mcp-requests.ts），兩邊要一致。
+  const queued = await enqueueEmail({
     dedupeKey: `account_setup_manual:${order.user_id}:${stamp}`,
     ...accountSetupEmail({
       to: order.contact_email as string,
@@ -269,6 +271,11 @@ export async function resendSetupEmail(
       }).format(new Date(order.created_at as string)),
     }),
   });
+  if (!queued) {
+    return {
+      error: "這封信沒有排進寄送佇列（可能一秒內重複送出，或資料庫寫入失敗），沒有寄出。請稍後再試一次。",
+    };
+  }
   await flushOutbox();
 
   await writeAudit(staff, {

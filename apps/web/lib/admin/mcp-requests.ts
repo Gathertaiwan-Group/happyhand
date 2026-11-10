@@ -220,16 +220,31 @@ export async function twoStepSnapshot(
   if (!o.user_id || !o.contact_email) {
     return { ok: false, error: "這筆訂單還沒有綁定帳號，請先到後台按「綁定並開通」。" };
   }
-  // 重放防線：上一次重寄的稽核時間。寄出去之後會多一筆，指紋就變了，
-  // 同一個 confirm_token 不能拿來連寄。
-  const { data: last } = await db
-    .from("audit_log")
+  /*
+    重放防線與冷卻的依據：這個帳號**上一封手動重寄信排進 email_outbox 的時間**。
+
+    🔴 原本讀的是 audit_log 的 order.resend_setup_email。但 writeAudit() 刻意
+       永不 throw —— 稽核寫失敗時信照樣寄出、卻沒有留下紀錄，下一次預檢讀到
+       的還是舊時間（或 none），冷卻與「同一個 confirm_token 不能連寄」兩道
+       防線同時失效，AI 就能對客人連環寄信（2026-11-10 資安審查）。
+       outbox 那一列是信「會被寄出」的前提：排不進去就不會寄，排進去了就一定
+       讀得到。所以改讀它，冷卻不再依賴一筆可能靜默失敗的稽核。
+       讀取失敗 → 拒絕（以前讀失敗會被當成「沒寄過」放行）。
+
+    dedupe_key 格式見 resendSetupEmail()：account_setup_manual:<user_id>:<epoch 秒>。
+    LIKE 的 "_" 是單字元萬用字元，只會讓比對更寬（多算到不存在的鍵），不會漏算。
+  */
+  const { data: last, error: lastErr } = await db
+    .from("email_outbox")
     .select("created_at")
-    .eq("entity_id", o.id)
-    .eq("action", "order.resend_setup_email")
+    .like("dedupe_key", `account_setup_manual:${o.user_id}:%`)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (lastErr) {
+    console.error("[mcp-requests] 讀取重寄紀錄失敗", o.id, lastErr.message);
+    return { ok: false, error: "讀取上次重寄紀錄失敗，為避免重複寄信，這次不提供重寄。請稍後再試。" };
+  }
   const lastAt = (last as { created_at?: string } | null)?.created_at ?? "none";
   // 冷卻：AI 可以一直重跑「第一步→第二步」拿新 token，沒有冷卻就能對客人連環寄信
   // （每寄一次還會讓上一封的連結失效）。後台按鈕不受這個限制。

@@ -12,6 +12,7 @@ import { voidForOrder } from "@/lib/invoice/issue";
 import { canReverseCharge, reverseCharge } from "@/lib/payment/blackcat";
 import { orderPaidEmail } from "@/lib/email/templates";
 import { createServiceClient } from "@/lib/supabase/server";
+import { claimRefundLease } from "./refund-lease";
 import {
   ORDER_STATUS_LABELS,
   checkTransition,
@@ -92,7 +93,7 @@ export async function refundOrder(orderId: string): Promise<OrderActionResult> {
   const db = createServiceClient();
   const { data: order } = await db
     .from("orders")
-    .select("order_no, status, total, payment_provider, payment_trade_no, payment_paid_amount")
+    .select("order_no, status, total, payment_provider, payment_trade_no, payment_paid_amount, updated_at")
     .eq("id", orderId)
     .maybeSingle();
 
@@ -130,6 +131,16 @@ export async function refundOrder(orderId: string): Promise<OrderActionResult> {
       };
     }
 
+    /*
+      🔴 退刷前先搶鎖（見 ./refund-lease.ts）。兩個同時進來的退款請求（連按兩下、
+         兩個人同時按、MCP 確認連結被分享後同時按）原本都會讀到 paid、都呼叫
+         reverseCharge —— 黑貓 PAY 收到兩次退刷。下面的 transitionOrder 雖然是
+         條件式 update，但它在退刷之後才跑，擋不住錢。
+         只有搶到的那一個會往下走；鎖是 6 分鐘租約，退刷失敗不會永久卡住。
+    */
+    const lock = await claimRefundLease(db, orderId, order.updated_at as string | null);
+    if (!lock.ok) return { error: lock.error };
+
     const amount = (order.payment_paid_amount as number | null) ?? (order.total as number);
     const res = await reverseCharge(order.order_no as string, amount);
 
@@ -144,11 +155,15 @@ export async function refundOrder(orderId: string): Promise<OrderActionResult> {
       return {
         error:
           res.reason +
-          (res.canRetryLater ? "" : " 若已經在黑貓 PAY 後台手動退過，請改用「已在後台退過款」。"),
+          (res.canRetryLater
+            ? "（為避免重複退刷，這筆訂單約 6 分鐘內不能再按退款。）"
+            : " 若已經在黑貓 PAY 後台手動退過，請改用「已在後台退過款」。"),
       };
     }
 
-    // 錢退掉了，接著改狀態。這一段失敗的話錢已經在路上，客服重按一次就好。
+    // 錢退掉了，接著改狀態。這一段失敗的話錢已經在路上：退款鎖期間（約 6 分鐘）
+    // 重按會被擋；之後重按，reverseCharge 回查會發現已退過而拒絕 —— 這時改用
+    // 「已在後台退過款」把狀態補上（它不呼叫金流）。
     const out = await transitionOrder(orderId, "refunded");
     await writeAudit(staff, {
       action: res.action === "cancelled" ? "order.auth_cancelled" : "order.refunded_gateway",

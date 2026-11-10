@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { safeRedirect } from "@/lib/auth/safe-redirect";
 
 /**
  * Supabase 驗證連結的落地點。
@@ -8,19 +9,14 @@ import { createClient } from "@/lib/supabase/server";
  * 必須用這個 code 換成 session cookie。沒有這支的話，員工點完驗證信會落在
  * 首頁、看起來什麼都沒發生，得再自己回登入頁輸入一次密碼。
  *
- * next 參數只允許站內相對路徑，理由同 login-form.tsx 的 safeRedirect()：
+ * next 參數只允許站內相對路徑，理由見 lib/auth/safe-redirect.ts：
  * 不擋的話這裡會變成開放轉址。
  */
-function safeNext(raw: string | null): string {
-  // 預設 /account，理由同 login-form.tsx 的 safeRedirect()。
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/account";
-  return raw;
-}
-
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const code = searchParams.get("code");
-  const next = safeNext(searchParams.get("next"));
+  // 只允許站內路徑，不擋會變成開放轉址，見 lib/auth/safe-redirect.ts。
+  const next = safeRedirect(searchParams.get("next"), "/account");
 
   // Supabase 在連結失效或被用過時會帶 error 回來，直接把原因轉給登入頁顯示
   const errorDescription = searchParams.get("error_description");

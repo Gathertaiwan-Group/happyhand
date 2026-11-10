@@ -8,6 +8,7 @@ import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { SITE } from "@/lib/site";
 import { authConfirmUrl } from "@/lib/auth/confirm-url";
+import { safeRedirect } from "@/lib/auth/safe-redirect";
 
 /**
  * 登入／註冊表單。
@@ -40,23 +41,6 @@ function mapAuthError(raw: string): string {
   return `登入失敗：${raw}`;
 }
 
-/**
- * 只允許站內相對路徑。
- * 不擋的話 /login?redirect=https://evil.com 會變成開放轉址，
- * 攻擊者可以拿我們的網域當跳板做釣魚。
- * `//evil.com` 也要擋——瀏覽器會當成 protocol-relative 的絕對網址。
- */
-function safeRedirect(raw: string | undefined): string {
-  // 預設值是 /account 而不是 /admin：這個登入頁的使用者絕大多數是學員，
-  // 員工來的時候一定是被 middleware 從 /admin/* 導過來的，會帶著 ?redirect=。
-  // 反過來設 /admin 的話，學員自己點「登入」會被丟到後台再被踢回首頁，
-  // 看起來就像登入失敗。
-  if (!raw) return "/account";
-  if (!raw.startsWith("/")) return "/account";
-  if (raw.startsWith("//")) return "/account";
-  return raw;
-}
-
 export function LoginForm({
   redirect,
   initialError,
@@ -73,7 +57,11 @@ export function LoginForm({
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const target = safeRedirect(redirect);
+  // 預設值是 /account 而不是 /admin：這個登入頁的使用者絕大多數是學員，
+  // 員工來的時候一定是被 middleware 從 /admin/* 導過來的，會帶著 ?redirect=。
+  // 反過來設 /admin 的話，學員自己點「登入」會被丟到後台再被踢回首頁，
+  // 看起來就像登入失敗。開放轉址的防護見 lib/auth/safe-redirect.ts。
+  const target = safeRedirect(redirect, "/account");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

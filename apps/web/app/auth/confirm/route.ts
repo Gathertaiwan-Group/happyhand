@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { safeRedirect } from "@/lib/auth/safe-redirect";
 
 /**
  * GET /auth/confirm — 信件連結的落地點（token_hash + verifyOtp）
@@ -25,13 +26,6 @@ import { createClient } from "@/lib/supabase/server";
  * （回的是 hashed token），所以「設定密碼」那條路無論如何都得用這一支。
  */
 
-function safeNext(raw: string | null): string {
-  // 只允許站內相對路徑，理由同 login-form.tsx 的 safeRedirect()：
-  // 不擋的話這裡會變成開放轉址，攻擊者能拿我們的網域當釣魚跳板。
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/account";
-  return raw;
-}
-
 /** Supabase 認得的信件類型。認不得的一律當作壞連結，不要硬送給 verifyOtp。 */
 const VALID_TYPES = new Set<EmailOtpType>([
   "signup",
@@ -46,7 +40,8 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const tokenHash = searchParams.get("token_hash");
   const rawType = searchParams.get("type");
-  const next = safeNext(searchParams.get("next"));
+  // 只允許站內路徑，不擋會變成開放轉址，見 lib/auth/safe-redirect.ts。
+  const next = safeRedirect(searchParams.get("next"), "/account");
 
   const type = VALID_TYPES.has(rawType as EmailOtpType)
     ? (rawType as EmailOtpType)

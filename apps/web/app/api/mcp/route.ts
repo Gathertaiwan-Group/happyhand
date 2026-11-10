@@ -13,16 +13,45 @@ import {
   loadWaitlist,
 } from "@/app/admin/sessions/queries";
 import { parseAuditFilters, loadAuditLog } from "@/app/admin/audit/queries";
+import { WAITLIST_STATUSES } from "@/app/admin/sessions/queries";
+import { cancelOrder } from "@/app/admin/orders/actions";
+import { regrantEntitlements, resendSetupEmail } from "@/app/admin/orders/account-actions";
+import { togglePublish } from "@/app/admin/products/actions";
+import { adjustSeats, setSessionStatus, setWaitlistStatus } from "@/app/admin/sessions/actions";
+import { MCP_ACTOR, runAsMachine } from "@/lib/admin/machine";
+import { writeAudit } from "@/lib/admin/audit";
+import {
+  envSecret,
+  matchesRequest,
+  signToken,
+  stateMatches,
+  TTL_SECONDS,
+  verifyToken,
+  VERIFY_FAILURE_MESSAGE,
+  type TokenArgs,
+} from "@/lib/admin/mcp-token";
+import {
+  APPROVAL_TOOLS,
+  confirmUrl,
+  resolveOrderId,
+  twoStepSnapshot,
+  type ActionOutcome,
+  type ApprovalTool,
+  type TwoStepTool,
+} from "@/lib/admin/mcp-requests";
+import { SITE } from "@/lib/site";
 
 /**
  * MCP server —— 讓 AI 客戶端（Claude Code / claude.ai 連接器）查這個站的後台。
  *
- * ## 這一版只有唯讀
+ * ## 寫入分三級（見下方「寫入工具」區塊）
  *
- * 刻意的。寫入（標記付款、退款、開發票）需要走後台既有的 server action，而那
- * 需要 lib/admin/machine.ts 的機器身分在授權層開一道口。那道口已經寫好了，但
- * 第一次部署不該同時賭「協定寫對了」與「授權層開的口是安全的」—— 先把這條線
- * 驗過能連、能用，寫入才疊上去。
+ * 唯讀工具先上線、驗過協定之後，寫入才疊上去。寫入一律走後台既有的
+ * server action：
+ *   - 直接執行與兩步確認：在 lib/admin/machine.ts 的 runAsMachine() 裡呼叫，
+ *     action 的 requireCapability() 看到的是 MCP_ACTOR（刻意不含 staff:manage）。
+ *   - 動錢與不可逆：MCP 不執行，只簽一個確認網址。真正執行在
+ *     app/admin/mcp/confirm，以按下確認的那個人的 cookie 身分呼叫 action。
  *
  * ## 為什麼不用 withMcpAuth
  *
@@ -129,6 +158,148 @@ const READ_ONLY = {
 
 function db() {
   return createServiceClient();
+}
+
+/* ------------------------------------------------------------ 寫入共用 */
+
+const WRITE = {
+  readOnlyHint: false,
+  openWorldHint: false,
+} as const;
+
+const ORDER_ARG = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .describe("訂單編號（例如 HH-20260831-AHM4）或訂單 UUID");
+
+const CONFIRM_TOKEN_ARG = z
+  .string()
+  .max(4200)
+  .optional()
+  .describe("第二次呼叫時帶上第一次回傳的 confirm_token；第一次呼叫請不要帶");
+
+/** action 的回傳 → MCP 結果。action 回 undefined 代表成功。 */
+function outcomeText(out: ActionOutcome, fallbackOk: string) {
+  if (out && out.error) return errText(out.error);
+  return jsonText({ ok: true, message: (out && out.ok) || fallbackOk });
+}
+
+/**
+ * 以機器身分呼叫一支 server action。
+ *
+ * 🔴 getStaff() 被 React.cache() 包著，這個 request 內**第一次**呼叫它的地方
+ *    必須已經在 runAsMachine() 裡 —— 所以 action 一律從這裡進，而且 route 的
+ *    其他地方都不呼叫 getStaff()。
+ */
+async function asMachine(fallbackOk: string, fn: () => Promise<ActionOutcome>) {
+  try {
+    const out = await runAsMachine(MCP_ACTOR, fn);
+    return outcomeText(out, fallbackOk);
+  } catch (err) {
+    console.error("[mcp] 寫入工具例外", err);
+    return errText("執行時發生未預期的錯誤，資料可能沒有被改動。請用唯讀工具確認目前狀態。");
+  }
+}
+
+/**
+ * 兩步確認。
+ *
+ * 第一步（沒帶 token）：預檢 + 回預覽與 confirm_token，**不寫任何東西**。
+ * 第二步：驗簽 → 驗工具與參數相同 → 重讀資料庫比對狀態 → 執行。
+ * 狀態比對是重放防線：執行過一次之後狀態就變了，同一個 token 不能再用。
+ */
+async function twoStep(
+  tool: TwoStepTool,
+  args: TokenArgs,
+  token: string | undefined,
+  run: () => Promise<ActionOutcome>,
+) {
+  const secret = envSecret();
+  if (!secret) return errText(VERIFY_FAILURE_MESSAGE.unconfigured);
+
+  let snap;
+  try {
+    snap = await twoStepSnapshot(db(), tool, args);
+  } catch (err) {
+    console.error("[mcp] 兩步確認預檢例外", tool, err);
+    return errText("讀取資料失敗，請稍後再試。");
+  }
+  if (!snap.ok) return errText(snap.error);
+
+  if (!token) {
+    const { token: confirmToken } = signToken(secret, { kind: "twostep", tool, args, state: snap.state });
+    return jsonText({
+      status: "needs_confirmation",
+      preview: snap.preview,
+      confirm_token: confirmToken,
+      expires_in_minutes: TTL_SECONDS.twostep / 60,
+      next_step:
+        "這個操作還沒有執行。請把 preview 告訴使用者、取得明確同意後，" +
+        "用完全相同的參數加上這個 confirm_token 再呼叫一次。",
+    });
+  }
+
+  const v = verifyToken(secret, token, "twostep");
+  if (!v.ok) return errText(VERIFY_FAILURE_MESSAGE[v.reason]);
+  const same = matchesRequest(v.payload, tool, args);
+  if (!same.ok) return errText(same.message);
+  const fresh = stateMatches(v.payload, snap.state);
+  if (!fresh.ok) return errText(fresh.message);
+
+  return asMachine("已執行。", run);
+}
+
+/**
+ * 本人在後台確認：預檢、簽 token、寫一筆 mcp.request 稽核、回確認網址。
+ *
+ * 🔴 回給 AI 的只有「已建立、網址、時效」—— 不多給任何唯讀工具本來就不給的資料。
+ */
+async function approval(tool: ApprovalTool, args: TokenArgs) {
+  const secret = envSecret();
+  if (!secret) return errText(VERIFY_FAILURE_MESSAGE.unconfigured);
+  const def = APPROVAL_TOOLS[tool];
+
+  let snap;
+  try {
+    snap = await def.snapshot(db(), args);
+  } catch (err) {
+    console.error("[mcp] 待確認請求預檢例外", tool, err);
+    return errText("讀取資料失敗，請稍後再試。");
+  }
+  if (!snap.ok) return errText(snap.error);
+
+  const { token, payload } = signToken(secret, { kind: "approve", tool, args, state: snap.state });
+
+  await writeAudit(MCP_ACTOR, {
+    action: "mcp.request",
+    entity: snap.entity,
+    entityId: snap.entityId,
+    summary: `AI 透過 MCP 提出「${def.title}」：${snap.ref}，等待管理員本人在後台確認`,
+    diff: { tool, nonce: payload.nonce, expires_at: new Date(payload.exp * 1000).toISOString() },
+  });
+
+  return jsonText({
+    status: "pending_human_confirmation",
+    message:
+      "已建立待確認請求，這個操作**還沒有執行**。請把下面的確認網址交給管理員，" +
+      "由本人登入後台核對後按下確認才會生效。",
+    confirm_url: confirmUrl(SITE.url, token),
+    expires_in_minutes: TTL_SECONDS.approve / 60,
+  });
+}
+
+async function approvalByOrder(tool: ApprovalTool, order: string, extra: TokenArgs = {}) {
+  let orderId: string | null;
+  try {
+    orderId = await resolveOrderId(db(), order);
+  } catch (err) {
+    console.error("[mcp] 解析訂單例外", err);
+    return errText("讀取訂單失敗，請稍後再試。");
+  }
+  if (!orderId) return errText(`找不到訂單 ${order}。`);
+  return approval(tool, { order_id: orderId, ...extra });
 }
 
 const mcp = createMcpHandler(
@@ -314,8 +485,312 @@ const mcp = createMcpHandler(
         });
       },
     );
+
+    /* ====================================================== 寫入工具
+     *
+     * 三級風險（業主原則：全部功能都能經 AI 操作，但 AI 可被 prompt injection，
+     * 所以「動錢與不可逆」的最終確認不交給 AI）：
+     *
+     *   直接執行  可逆、冪等。在 runAsMachine() 裡直接呼叫原本的 server action。
+     *   兩步確認  第一次只回預覽與 confirm_token，第二次帶同一個 token 才執行。
+     *             token 綁定工具＋參數＋到期時間＋當下狀態。
+     *             ⚠️ token 是回給同一個 AI 的，所以這一級擋的是「AI 誤觸／沒先
+     *             跟使用者確認」，**不擋 prompt injection**。動錢的不放這一級。
+     *   本人確認  MCP 不執行，只回一個後台確認網址。管理員登入後看著資料庫讀出
+     *             的摘要、本人按確認，才以他自己的身分呼叫 action。
+     *
+     * 🔴 每一支 server action 自己的冪等條件式 update、「先退錢後改狀態」等順序
+     *    保證全部原封不動 —— 這裡只做包裝，不重寫任何業務邏輯。
+     */
+
+    /* ---------------------------------------------------- 直接執行 */
+
+    server.registerTool(
+      "set_session_status",
+      {
+        title: "開關場次報名",
+        description:
+          "把工作坊場次改成開放報名（open）、暫停報名（closed）或已取消（cancelled）。" +
+          "「已額滿」由系統依名額自動判定，不能手動設定。已取消可以再改回開放報名。",
+        inputSchema: z.object({
+          session_id: z.string().uuid().describe("workshop_sessions.id"),
+          status: z
+            .enum(["open", "closed", "cancelled"])
+            .describe("open 開放報名／closed 暫停報名／cancelled 已取消"),
+        }),
+        annotations: { ...WRITE, destructiveHint: false, idempotentHint: true },
+      },
+      async ({ session_id, status }) =>
+        asMachine("場次狀態已更新。", () => setSessionStatus(session_id, status)),
+    );
+
+    server.registerTool(
+      "publish_product",
+      {
+        title: "發布課程",
+        description: "把課程／工作坊從草稿改成發布中，前台會看得到。隨時可以用 unpublish_product 下架。",
+        inputSchema: z.object({
+          product_id: z.string().uuid().describe("products.id"),
+        }),
+        annotations: { ...WRITE, destructiveHint: false, idempotentHint: true },
+      },
+      async ({ product_id }) =>
+        asMachine("已發布。", () => togglePublish(product_id, true)),
+    );
+
+    server.registerTool(
+      "unpublish_product",
+      {
+        title: "下架課程",
+        description: "把課程／工作坊改回草稿，前台看不到。已購買的學員不受影響。隨時可以用 publish_product 再發布。",
+        inputSchema: z.object({
+          product_id: z.string().uuid().describe("products.id"),
+        }),
+        annotations: { ...WRITE, destructiveHint: false, idempotentHint: true },
+      },
+      async ({ product_id }) =>
+        asMachine("已下架。", () => togglePublish(product_id, false)),
+    );
+
+    server.registerTool(
+      "set_waitlist_status",
+      {
+        title: "更新候補狀態",
+        description:
+          "更新一筆候補登記的狀態。正常流程是 waiting 候補中 → offered 已通知 → converted 已轉正式報名；" +
+          "未結束的都可以改成 cancelled。⚠️ cancelled 是終點，改了就不能復原（要重新登記一筆）。",
+        inputSchema: z.object({
+          waitlist_id: z.string().uuid().describe("workshop_waitlist.id（get_session_waitlist 查得到）"),
+          status: z
+            .enum(WAITLIST_STATUSES)
+            .describe("waiting 候補中／offered 已通知／converted 已轉正式報名／cancelled 已取消"),
+        }),
+        // cancelled 是終點，所以誠實標成 destructive
+        annotations: { ...WRITE, destructiveHint: true, idempotentHint: true },
+      },
+      async ({ waitlist_id, status }) => {
+        const { data } = await db()
+          .from("workshop_waitlist")
+          .select("session_id")
+          .eq("id", waitlist_id)
+          .maybeSingle();
+        const sessionId = (data as { session_id?: string } | null)?.session_id;
+        if (!sessionId) return errText(`找不到候補紀錄 ${waitlist_id}。`);
+        return asMachine("候補狀態已更新。", () =>
+          setWaitlistStatus(waitlist_id, sessionId, status),
+        );
+      },
+    );
+
+    server.registerTool(
+      "regrant_entitlements",
+      {
+        title: "重新開通課程",
+        description:
+          "依訂單內容補開通線上課程觀看權限（已開通的不會重複）。有新開通時會寄一封開通通知信給客人（同一筆訂單只寄一次）。" +
+          "金額未核對的訂單會被擋下，那種要用 force_grant_entitlements。",
+        inputSchema: z.object({ order: ORDER_ARG }),
+        annotations: { ...WRITE, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      },
+      async ({ order }) => {
+        const orderId = await resolveOrderId(db(), order);
+        if (!orderId) return errText(`找不到訂單 ${order}。`);
+        return asMachine("已處理。", () => regrantEntitlements(orderId));
+      },
+    );
+
+    /* ---------------------------------------------------- 兩步確認 */
+
+    server.registerTool(
+      "cancel_order",
+      {
+        title: "取消訂單（兩步確認）",
+        description:
+          "取消一筆待收款的訂單（已收款的訂單不能取消，要走退款）。取消是最終狀態。" +
+          "兩步確認：第一次呼叫不要帶 confirm_token，會回預覽與 confirm_token；" +
+          "向使用者說明預覽內容、取得同意後，用完全相同的參數加上 confirm_token 再呼叫一次才會執行。",
+        inputSchema: z.object({ order: ORDER_ARG, confirm_token: CONFIRM_TOKEN_ARG }),
+        annotations: { ...WRITE, destructiveHint: true, idempotentHint: true },
+      },
+      async ({ order, confirm_token }) => {
+        const orderId = await resolveOrderId(db(), order);
+        if (!orderId) return errText(`找不到訂單 ${order}。`);
+        return twoStep("cancel_order", { order_id: orderId }, confirm_token, () =>
+          cancelOrder(orderId),
+        );
+      },
+    );
+
+    server.registerTool(
+      "adjust_seats",
+      {
+        title: "微調場次名額（兩步確認）",
+        description:
+          "把某場次的已報名人數加 1 或減 1（一次只能 ±1）。用在現場報名、電話保留位等不經過訂單的情況。" +
+          "兩步確認：第一次呼叫不要帶 confirm_token，會回預覽與 confirm_token；" +
+          "取得使用者同意後，用完全相同的參數加上 confirm_token 再呼叫一次才會執行。",
+        inputSchema: z.object({
+          session_id: z.string().uuid().describe("workshop_sessions.id"),
+          delta: z.union([z.literal(1), z.literal(-1)]).describe("1 加一人／-1 減一人"),
+          confirm_token: CONFIRM_TOKEN_ARG,
+        }),
+        annotations: { ...WRITE, destructiveHint: false, idempotentHint: false },
+      },
+      async ({ session_id, delta, confirm_token }) =>
+        twoStep("adjust_seats", { session_id, delta }, confirm_token, () =>
+          adjustSeats(session_id, delta),
+        ),
+    );
+
+    server.registerTool(
+      "resend_setup_email",
+      {
+        title: "重寄設定密碼信（兩步確認）",
+        description:
+          "重寄「設定密碼」信到訂單的聯絡信箱（客人說沒收到信時用）。每呼叫一次就會真的寄一封。" +
+          "兩步確認：第一次呼叫不要帶 confirm_token，會回預覽與 confirm_token；" +
+          "取得使用者同意後，用完全相同的參數加上 confirm_token 再呼叫一次才會寄出。",
+        inputSchema: z.object({ order: ORDER_ARG, confirm_token: CONFIRM_TOKEN_ARG }),
+        annotations: { ...WRITE, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+      },
+      async ({ order, confirm_token }) => {
+        const orderId = await resolveOrderId(db(), order);
+        if (!orderId) return errText(`找不到訂單 ${order}。`);
+        return twoStep("resend_setup_email", { order_id: orderId }, confirm_token, () =>
+          resendSetupEmail(orderId),
+        );
+      },
+    );
+
+    /* ---------------------------------------------- 本人在後台確認 */
+
+    const APPROVAL_NOTE =
+      "⚠️ 這個工具不會執行操作：它只建立一個待確認請求並回傳後台確認網址，" +
+      "必須由管理員本人登入後台、核對摘要後按下確認才會生效（30 分鐘內有效）。" +
+      "請把網址交給使用者，不要嘗試自己開啟或確認。";
+
+    server.registerTool(
+      "mark_order_paid",
+      {
+        title: "標記已收款（需本人確認）",
+        description:
+          "請求把待收款訂單標記為已收款（會佔用名額、開通課程、寄開通信）。" + APPROVAL_NOTE,
+        inputSchema: z.object({ order: ORDER_ARG }),
+        annotations: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+      },
+      async ({ order }) => approvalByOrder("mark_order_paid", order),
+    );
+
+    server.registerTool(
+      "refund_order",
+      {
+        title: "退款（需本人確認）",
+        description:
+          "請求為已收款訂單退款。線上刷卡的訂單在確認後會真的呼叫黑貓 PAY 退刷。" + APPROVAL_NOTE,
+        inputSchema: z.object({ order: ORDER_ARG }),
+        annotations: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+      },
+      async ({ order }) => approvalByOrder("refund_order", order),
+    );
+
+    server.registerTool(
+      "mark_refunded_manually",
+      {
+        title: "標記已人工退款（需本人確認）",
+        description:
+          "請求把已收款訂單標記為已退款，但不呼叫金流（錢已經在黑貓 PAY 後台或其他管道退過）。" +
+          APPROVAL_NOTE,
+        inputSchema: z.object({ order: ORDER_ARG }),
+        annotations: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+      },
+      async ({ order }) => approvalByOrder("mark_refunded_manually", order),
+    );
+
+    server.registerTool(
+      "reissue_invoice",
+      {
+        title: "補開發票（需本人確認）",
+        description: "請求為已收款訂單透過 Amego 補開電子發票。" + APPROVAL_NOTE,
+        inputSchema: z.object({ order: ORDER_ARG }),
+        annotations: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+      },
+      async ({ order }) => approvalByOrder("reissue_invoice", order),
+    );
+
+    server.registerTool(
+      "void_invoice",
+      {
+        title: "作廢發票（需本人確認）",
+        description:
+          "請求作廢訂單的電子發票（不會退款、不會改訂單狀態）。作廢後同一張訂單不能再用系統重開。" +
+          "作廢原因會預填在確認頁上，由管理員本人確認或修改後才送出。" +
+          APPROVAL_NOTE,
+        inputSchema: z.object({
+          order: ORDER_ARG,
+          reason: z.string().trim().min(1).max(20).describe("作廢原因，20 字以內（會送到 Amego）"),
+        }),
+        annotations: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+      },
+      async ({ order, reason }) => approvalByOrder("void_invoice", order, { reason }),
+    );
+
+    server.registerTool(
+      "force_grant_entitlements",
+      {
+        title: "核對金額並強制開通（需本人確認）",
+        description:
+          "請求解除訂單的「金額未核對」旗標並開通課程。確認的人等於聲明「已核對金額無誤」。" +
+          APPROVAL_NOTE,
+        inputSchema: z.object({ order: ORDER_ARG }),
+        annotations: { ...WRITE, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+      },
+      async ({ order }) => approvalByOrder("force_grant_entitlements", order),
+    );
+
+    server.registerTool(
+      "revoke_course_access",
+      {
+        title: "關閉課程觀看權限（需本人確認）",
+        description:
+          "請求關閉訂單綁定的會員帳號對某門課的觀看權限。帳號由訂單決定，不能另外指定。" +
+          APPROVAL_NOTE,
+        inputSchema: z.object({
+          order: ORDER_ARG,
+          product_id: z.string().uuid().describe("要關閉的課程 products.id"),
+        }),
+        annotations: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+      },
+      async ({ order, product_id }) =>
+        approvalByOrder("revoke_course_access", order, { product_id }),
+    );
+
+    server.registerTool(
+      "delete_product",
+      {
+        title: "刪除課程（需本人確認）",
+        description:
+          "請求永久刪除一門課程／工作坊（含底下場次）。有人買過的課不能刪，請改用 unpublish_product。" +
+          APPROVAL_NOTE,
+        inputSchema: z.object({ product_id: z.string().uuid().describe("products.id") }),
+        annotations: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+      },
+      async ({ product_id }) => approval("delete_product", { product_id }),
+    );
+
+    server.registerTool(
+      "delete_session",
+      {
+        title: "刪除場次（需本人確認）",
+        description:
+          "請求永久刪除一個工作坊場次。已有訂單的場次不能刪，請改用 set_session_status 設成 cancelled。" +
+          APPROVAL_NOTE,
+        inputSchema: z.object({ session_id: z.string().uuid().describe("workshop_sessions.id") }),
+        annotations: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+      },
+      async ({ session_id }) => approval("delete_session", { session_id }),
+    );
   },
-  { serverInfo: { name: "happyhands", version: "1.0.0" } },
+  { serverInfo: { name: "happyhands", version: "1.1.0" } },
 );
 
 /* ----------------------------------------------------------------- 入口 */

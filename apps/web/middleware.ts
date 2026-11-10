@@ -64,12 +64,7 @@ export async function middleware(request: NextRequest) {
   login.search = "";
   // 只帶 pathname，不帶原本的 query string——query 可能含有訂單編號之類的東西，
   // 沒必要出現在登入頁的網址列。
-  //
-  // 例外：MCP 確認頁（/admin/mcp/confirm?t=…）。確認碼就在 query 裡，丟掉的話
-  // 管理員登入完回到的是一個「網址裡沒有確認碼」的空頁，得回頭再點一次連結。
-  // 確認碼本身不含個資（只有工具名與 id），而且沒有後台身分照樣用不了。
-  const keepQuery = pathname === "/admin/mcp/confirm" && request.nextUrl.search.length > 0;
-  login.searchParams.set("redirect", keepQuery ? `${pathname}${request.nextUrl.search}` : pathname);
+  login.searchParams.set("redirect", pathname);
   return NextResponse.redirect(login);
 }
 

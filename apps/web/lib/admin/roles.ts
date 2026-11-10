@@ -38,7 +38,15 @@ export type Capability =
   /** 邀請員工、改角色 */
   | "staff:manage"
   /** 看稽核紀錄 */
-  | "audit:read";
+  | "audit:read"
+  /**
+   * 看、關閉 AI（MCP）提出的退款／作廢發票申請。只給負責人。
+   *
+   * 🔴 刻意不在 lib/admin/machine.ts 的 MCP_ACTOR.caps 裡：AI 只能「提出」申請，
+   *    不能自己把申請關掉，也看不到後台的待處理清單。
+   *    （申請本身是 audit_log 的一列，MCP 的 search_audit_log 讀得到稽核紀錄。）
+   */
+  | "mcp:requests";
 
 /**
  * 角色 → 能力。
@@ -81,6 +89,7 @@ const MATRIX: Record<Role, readonly Capability[]> = {
     "sessions:status",
     "staff:manage",
     "audit:read",
+    "mcp:requests",
   ],
 };
 

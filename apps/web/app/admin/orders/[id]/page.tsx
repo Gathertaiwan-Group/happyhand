@@ -1,7 +1,10 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getStaff, requireCapability, adminErrorMessage } from "@/lib/admin/guard";
+import { checkCapability, getStaff, requireCapability, adminErrorMessage } from "@/lib/admin/guard";
+import { loadPendingMcpRequests } from "@/lib/admin/mcp-pending-repo";
+import { findPending, type PendingMcpRequest } from "@/lib/admin/mcp-pending";
+import { McpRequestNotice } from "@/components/admin/mcp-request-banner";
 import { can } from "@/lib/admin/roles";
 import { createServiceClient } from "@/lib/supabase/server";
 import { formatTaipei } from "@/components/admin/datetime-field";
@@ -167,6 +170,20 @@ export default async function AdminOrderDetailPage({
 
   const accountInfo = await loadAccountInfo(supabase, order, items);
 
+  // AI（MCP）提出的退款／作廢申請 —— 只給負責人（mcp:requests）看。
+  // undefined = 不顯示（沒權限）；null = 讀取失敗。
+  let mcpRequests: PendingMcpRequest[] | null | undefined;
+  if (await checkCapability("mcp:requests")) {
+    try {
+      mcpRequests = await loadPendingMcpRequests(supabase, { orderId: order.id });
+    } catch (err) {
+      console.error("[admin/orders] 讀取 AI 申請失敗", order.id, err);
+      mcpRequests = null;
+    }
+  }
+  const refundRequest = mcpRequests ? findPending(mcpRequests, order.id, "refund") : null;
+  const voidRequest = mcpRequests ? findPending(mcpRequests, order.id, "invoice_void") : null;
+
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -187,6 +204,14 @@ export default async function AdminOrderDetailPage({
       {order.price_unverified && <PriceUnverifiedBanner total={order.total} />}
 
       <OrderAccountPanel info={accountInfo} canWrite={canWrite} />
+
+      {mcpRequests === null && (
+        <p role="status" className="rounded-card border border-line bg-panel px-4 py-3 text-[14px] text-ink-soft">
+          AI 申請（退款／作廢發票）讀取失敗，請重新整理。
+        </p>
+      )}
+
+      <McpRequestNotice request={voidRequest} />
 
       <OrderInvoicePanel info={invoiceInfo} canWrite={canWrite} />
 
@@ -269,6 +294,8 @@ export default async function AdminOrderDetailPage({
           </>
         )}
       </Panel>
+
+      <McpRequestNotice request={refundRequest} />
 
       <Panel title="狀態操作">
         <OrderStatusButtons orderId={order.id} status={order.status} canWrite={canWrite} />

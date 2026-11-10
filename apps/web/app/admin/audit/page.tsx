@@ -155,6 +155,12 @@ export default async function AdminAuditPage({
         <Callout key={note} tone="warn" title={note} />
       ))}
 
+      {parsed.hidePreviews && (
+        <p className="text-[13px] text-ink-soft">
+          AI（MCP）的「只預覽、未執行」紀錄預設不列出；要看請在「動作」填 mcp.preview。
+        </p>
+      )}
+
       {result.error ? (
         <Callout tone="danger" title={result.error} />
       ) : (

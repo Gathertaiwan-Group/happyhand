@@ -1,55 +1,55 @@
 import "server-only";
 import { createServiceClient } from "@/lib/supabase/server";
-import type { Capability } from "@/lib/admin/roles";
 import { loadOrderDetail } from "@/app/admin/orders/queries";
-import { checkTransition, money, ORDER_STATUS_LABELS, paymentMethodLabel, isOrderStatus } from "@/app/admin/orders/shared";
 import {
-  checkProductDeletable,
-  checkSessionDeletable,
-  type CountClient,
-} from "@/app/admin/products/guards";
-import { SESSION_STATUS_LABEL, toSessionStatus } from "@/app/admin/sessions/queries";
+  checkTransition,
+  money,
+  ORDER_STATUS_LABELS,
+  paymentMethodLabel,
+  isOrderStatus,
+} from "@/app/admin/orders/shared";
+import {
+  SESSION_STATUS_LABEL,
+  toSessionStatus,
+  WAITLIST_STATUS_LABEL,
+  toWaitlistStatus,
+  type SessionStatus,
+  type WaitlistStatus,
+} from "@/app/admin/sessions/queries";
+import { canTransitionSession, canTransitionWaitlist } from "@/app/admin/sessions/transitions";
 import { formatTaipei } from "@/components/admin/datetime-field";
-import { markOrderPaid, refundOrder, markRefundedManually } from "@/app/admin/orders/actions";
-import {
-  forceGrantEntitlements,
-  revokeCourseAccess,
-} from "@/app/admin/orders/account-actions";
-import { reissueInvoice, voidInvoiceAction } from "@/app/admin/orders/invoice-actions";
-import { deleteProduct, deleteSession } from "@/app/admin/products/actions";
+import { cancelOrder, markOrderPaid } from "@/app/admin/orders/actions";
+import { regrantEntitlements, revokeCourseAccess } from "@/app/admin/orders/account-actions";
+import { reissueInvoice } from "@/app/admin/orders/invoice-actions";
+import { togglePublish } from "@/app/admin/products/actions";
+import { adjustSeats, setSessionStatus, setWaitlistStatus } from "@/app/admin/sessions/actions";
+import { isAmegoConfigured } from "@/lib/invoice/amego";
+import { manualPaymentAllowed } from "@/lib/admin/mcp-pending";
 import type { TokenArgs } from "@/lib/admin/mcp-token";
 
 /**
- * 「本人在後台確認」與「兩步確認」工具的共用定義。
+ * MCP 寫入工具的預檢與預覽（app/api/mcp/route.ts 用）。
  *
- * MCP 那一側（app/api/mcp/route.ts）用 snapshot() 決定能不能提出請求、
- * 把當下狀態簽進 token；確認頁（app/admin/mcp/confirm）用同一支 snapshot()
- * 重新讀資料庫、比對狀態，再用 execute() 呼叫原本的 server action。
- * 兩邊共用同一份定義，「提出時檢查的」與「確認時檢查的」才不會分岔。
+ * ## 先預覽、再執行（dry_run，比照小時光書店）
  *
- * 🔴 snapshot() 只讀資料庫，**不讀 token 裡的任何文字**。token 裡的參數只有
- *    id（以及作廢原因），而且 id 也要先查得到才算數。
+ * 每支「預覽制」工具在這裡有一支 preview 函式：只讀資料庫，回「目前狀態、
+ * 會改什麼、此刻會不會執行」，外加一個 run()。route 在 dry_run=true（預設）時
+ * 只把預覽交給 AI、記一筆 mcp.preview.<工具名> 稽核；dry_run=false 時**重新**
+ * 預檢一次（不信任上一次預覽的結果，狀態可能已經變了），條件成立才在
+ * runAsMachine() 裡呼叫 run()。
+ *
+ * 🔴 run() 一律呼叫後台原本的 server action，不重寫業務邏輯；action 自己的
+ *    requireCapability()、冪等條件式 update 與 writeAudit() 全部照舊。
+ * 🔴 run() 需要的 id（例如 revoke 的帳號 id、候補所屬的場次）從資料庫讀，不讓 AI 指定。
+ *
+ * ## 兩步確認只剩 resend_setup_email
+ *
+ * 那支會真的寄信給客人，維持原本的 confirm_token ＋ 冷卻（twoStepSnapshot）。
  */
 
 export type Db = ReturnType<typeof createServiceClient>;
 
-export type Snapshot =
-  | {
-      ok: true;
-      /** 狀態指紋，簽進 token；確認時必須逐字相同 */
-      state: string;
-      entity: "order" | "product" | "session";
-      entityId: string;
-      /** 從資料庫讀出來的識別（訂單編號、課程名稱…），給稽核摘要用 */
-      ref: string;
-      /** 執行時需要、但不該讓 AI 指定的值（例如訂單綁定的帳號 id） */
-      ctx: Record<string, string>;
-    }
-  | { ok: false; error: string };
-
 export type ActionOutcome = { error?: string | null; ok?: string | null } | undefined | void;
-
-export type SummaryRow = { label: string; value: string; strong?: boolean };
 
 /* ================================================================ 讀取 */
 
@@ -65,156 +65,418 @@ export async function resolveOrderId(db: Db, orderNoOrId: string): Promise<strin
   return row?.id ?? null;
 }
 
-type OrderFacts = {
+export type OrderFacts = {
   id: string;
   order_no: string;
   status: string;
   total: number;
   price_unverified: boolean | null;
   user_id: string | null;
-  contact_name: string | null;
-  contact_phone: string | null;
   contact_email: string | null;
   payment_method: string | null;
   payment_provider: string | null;
-  payment_paid_amount: number | null;
-  paid_at: string | null;
-  created_at: string;
 };
 
-async function readOrder(db: Db, orderId: unknown): Promise<OrderFacts | null> {
+export async function readOrder(db: Db, orderId: unknown): Promise<OrderFacts | null> {
   if (!isUuid(orderId)) return null;
   const { data, error } = await db
     .from("orders")
     .select(
-      "id, order_no, status, total, price_unverified, user_id, contact_name, contact_phone, contact_email," +
-        " payment_method, payment_provider, payment_paid_amount, paid_at, created_at",
+      "id, order_no, status, total, price_unverified, user_id, contact_email, payment_method, payment_provider",
     )
     .eq("id", orderId)
     .maybeSingle();
   if (error) {
-    console.error("[mcp-requests] 讀取訂單失敗", orderId, error.message);
-    return null;
+    // 讀失敗不能當成「找不到」—— 丟出去讓呼叫端回「讀取失敗」
+    throw new Error(`[mcp-requests] 讀取訂單失敗：${error.message}`);
   }
   return (data as unknown as OrderFacts | null) ?? null;
 }
 
-async function readInvoice(
+/** 訂單編號或 UUID → 訂單現況。查不到回 null；讀取失敗 throw。 */
+export async function findOrder(db: Db, ref: string): Promise<OrderFacts | null> {
+  const id = await resolveOrderId(db, ref);
+  return id ? readOrder(db, id) : null;
+}
+
+export async function readInvoice(
   db: Db,
   orderId: string,
 ): Promise<{ status: string; invoice_number: string | null } | null> {
-  const { data } = await db
+  const { data, error } = await db
     .from("invoices")
     .select("status, invoice_number")
     .eq("order_id", orderId)
     .maybeSingle();
+  if (error) throw new Error(`[mcp-requests] 讀取發票失敗：${error.message}`);
   return (data as unknown as { status: string; invoice_number: string | null } | null) ?? null;
 }
 
-type ProductFacts = {
-  id: string;
-  title: string;
-  slug: string;
-  type: string;
-  is_published: boolean;
-  updated_at: string;
-};
+type ProductFacts = { id: string; title: string; is_published: boolean };
 
 async function readProduct(db: Db, productId: unknown): Promise<ProductFacts | null> {
   if (!isUuid(productId)) return null;
-  const { data } = await db
+  const { data, error } = await db
     .from("products")
-    .select("id, title, slug, type, is_published, updated_at")
+    .select("id, title, is_published")
     .eq("id", productId)
     .maybeSingle();
+  if (error) throw new Error(`[mcp-requests] 讀取課程失敗：${error.message}`);
   return (data as unknown as ProductFacts | null) ?? null;
 }
 
 type SessionFacts = {
   id: string;
-  product_id: string;
   starts_at: string;
-  location: string | null;
   capacity: number;
   seats_taken: number;
   status: string;
-  updated_at: string;
   products: { title: string } | { title: string }[] | null;
 };
 
 async function readSession(db: Db, sessionId: unknown): Promise<SessionFacts | null> {
   if (!isUuid(sessionId)) return null;
-  const { data } = await db
+  const { data, error } = await db
     .from("workshop_sessions")
-    .select("id, product_id, starts_at, location, capacity, seats_taken, status, updated_at, products(title)")
+    .select("id, starts_at, capacity, seats_taken, status, products(title)")
     .eq("id", sessionId)
     .maybeSingle();
+  if (error) throw new Error(`[mcp-requests] 讀取場次失敗：${error.message}`);
   return (data as unknown as SessionFacts | null) ?? null;
 }
 
-function sessionTitle(s: SessionFacts): string {
-  const p = Array.isArray(s.products) ? s.products[0] : s.products;
-  return p?.title ?? "（未知課程）";
-}
-
 function sessionRef(s: SessionFacts): string {
-  return `「${sessionTitle(s)}」${formatTaipei(s.starts_at)} 場`;
+  const p = Array.isArray(s.products) ? s.products[0] : s.products;
+  return `「${p?.title ?? "（未知課程）"}」${formatTaipei(s.starts_at)} 場`;
 }
 
-const NOT_FOUND_ORDER = "找不到這筆訂單。";
+function statusLabel(status: string): string {
+  return isOrderStatus(status) ? ORDER_STATUS_LABELS[status] : status;
+}
+
+export const NOT_FOUND_ORDER = "找不到這筆訂單。";
+
+/* ============================================================== 預覽制 */
+
+export type Preview =
+  | { ok: false; error: string }
+  | {
+      ok: true;
+      entity: "order" | "product" | "session" | "waitlist";
+      entityId: string;
+      /** 從資料庫讀出來的識別（訂單編號、課程名稱…） */
+      ref: string;
+      /** 目前狀態（給 AI 看，全部從資料庫讀） */
+      current: Record<string, unknown>;
+      /** 此刻用 dry_run=false 呼叫會不會執行 */
+      willExecute: boolean;
+      /** willExecute 時：會發生什麼；否則：為什麼不會執行 */
+      message: string;
+      /** 執行成功、action 沒回訊息時用的一句話 */
+      okMessage: string;
+      run: () => Promise<ActionOutcome>;
+    };
+
+function blocked(
+  base: { entity: "order" | "product" | "session" | "waitlist"; entityId: string; ref: string; current: Record<string, unknown> },
+  message: string,
+): Preview {
+  return { ok: true, ...base, willExecute: false, message, okMessage: "", run: async () => ({ error: message }) };
+}
+
+function orderBase(o: OrderFacts): {
+  entity: "order";
+  entityId: string;
+  ref: string;
+  current: Record<string, unknown>;
+} {
+  return {
+    entity: "order" as const,
+    entityId: o.id,
+    ref: `訂單 ${o.order_no}`,
+    current: {
+      order_no: o.order_no,
+      status: o.status,
+      status_label: statusLabel(o.status),
+      total: o.total,
+      payment_method: o.payment_method,
+      payment_method_label: paymentMethodLabel(o.payment_method),
+    },
+  };
+}
+
+/** mark_order_paid：只限 ATM／人工收款的待收款訂單。金額由資料庫決定。 */
+export async function previewMarkOrderPaid(db: Db, order: string): Promise<Preview> {
+  const o = await findOrder(db, order);
+  if (!o) return { ok: false, error: `找不到訂單 ${order}。（提醒：mark_order_paid 只限 ATM 轉帳／人工收款的訂單）` };
+  const base = orderBase(o);
+  if (!manualPaymentAllowed(o.payment_method, o.payment_provider)) {
+    return blocked(
+      base,
+      `訂單 ${o.order_no} 的付款方式是「${paymentMethodLabel(o.payment_method)}」，不是 ATM 轉帳或人工收款。` +
+        "線上刷卡的訂單請到黑貓 PAY 後台核對，金流商沒通知收款不能手動標記。",
+    );
+  }
+  const check = checkTransition(o.status, "paid");
+  if (!check.ok) return blocked(base, check.message);
+  return {
+    ok: true,
+    ...base,
+    willExecute: true,
+    message:
+      `將把訂單 ${o.order_no}（${paymentMethodLabel(o.payment_method)}，金額 ${money(o.total)}，金額以資料庫為準）` +
+      "從「待收款」改成「已收款」：佔用工作坊名額、開通線上課程、寄開通通知信給客人。之後只能走退款，不能改回待收款。" +
+      (o.price_unverified ? "⚠️ 這筆訂單標記為「金額未核對」，線上課程不會自動開通，需負責人在後台核對。" : "") +
+      "請先確認款項確實已經入帳。",
+    okMessage: "已標記為已收款。",
+    run: () => markOrderPaid(o.id),
+  };
+}
+
+/** reissue_invoice：只有後台「補開發票」按鈕此刻會出現的訂單才執行。 */
+export async function previewReissueInvoice(db: Db, order: string): Promise<Preview> {
+  const o = await findOrder(db, order);
+  if (!o) return { ok: false, error: `找不到訂單 ${order}。` };
+  const inv = await readInvoice(db, o.id);
+  const base = orderBase(o);
+  base.current = {
+    ...base.current,
+    invoice_status: inv?.status ?? "（沒有發票紀錄）",
+    invoice_number: inv?.invoice_number ?? null,
+  };
+  if (o.status !== "paid") {
+    return blocked(base, `訂單目前是「${statusLabel(o.status)}」，只有「已收款」的訂單可以補開發票。`);
+  }
+  // 後台面板：發票作廢後「補開發票」按鈕不出現；已開立時那顆變成「重新檢查」，不是補開。
+  if (inv?.status === "issued") {
+    return blocked(base, `這張訂單已經開過發票 ${inv.invoice_number ?? ""}，不需要補開。`);
+  }
+  if (inv?.status === "voided") {
+    return blocked(base, "這張訂單的發票已經作廢，不能用同一張訂單重開（Amego 訂單編號唯一），請到 Amego 後台手動處理。");
+  }
+  if (!isAmegoConfigured()) {
+    return blocked(base, "系統還沒設定 Amego 憑證，現在開不了發票。");
+  }
+  return {
+    ok: true,
+    ...base,
+    willExecute: true,
+    message:
+      `將透過 Amego 為訂單 ${o.order_no}（${money(o.total)}）開立電子發票` +
+      `（目前發票狀態：${inv?.status ?? "尚未建立"}）。發票是稅務憑證，開出後只能由負責人在後台作廢。` +
+      "若 Amego 上其實已經開過，系統會認回而不會重複開立。",
+    okMessage: "已處理。",
+    run: () => reissueInvoice(o.id),
+  };
+}
+
+/** cancel_order：只限待收款訂單。 */
+export async function previewCancelOrder(db: Db, order: string): Promise<Preview> {
+  const o = await findOrder(db, order);
+  if (!o) return { ok: false, error: `找不到訂單 ${order}。` };
+  const base = orderBase(o);
+  const check = checkTransition(o.status, "cancelled");
+  if (!check.ok) return blocked(base, check.message);
+  return {
+    ok: true,
+    ...base,
+    willExecute: true,
+    message: `將取消訂單 ${o.order_no}（${money(o.total)}，目前「${statusLabel(o.status)}」）。取消是最終狀態，不能再改回。`,
+    okMessage: "已取消訂單。",
+    run: () => cancelOrder(o.id),
+  };
+}
+
+/** regrant_entitlements：依訂單補開通線上課程。 */
+export async function previewRegrant(db: Db, order: string): Promise<Preview> {
+  const o = await findOrder(db, order);
+  if (!o) return { ok: false, error: `找不到訂單 ${order}。` };
+  const base = orderBase(o);
+  if (o.status !== "paid") return blocked(base, `訂單目前是「${statusLabel(o.status)}」，只有「已收款」的訂單可以開通課程。`);
+  if (!o.user_id) return blocked(base, "這筆訂單還沒有綁定會員帳號，請先到後台按「綁定並開通」。");
+  if (o.price_unverified) {
+    return blocked(base, "這筆訂單標記為「金額未核對」，不能透過 MCP 開通，請負責人到後台核對金額後處理。");
+  }
+  const { count, error } = await db
+    .from("entitlements")
+    .select("product_id", { count: "exact", head: true })
+    .eq("user_id", o.user_id)
+    .eq("order_id", o.id);
+  if (error) throw new Error(`[mcp-requests] 讀取開通紀錄失敗：${error.message}`);
+  base.current = { ...base.current, entitlements_from_this_order: count ?? 0 };
+  return {
+    ok: true,
+    ...base,
+    willExecute: true,
+    message:
+      `將依訂單 ${o.order_no} 的品項補開通線上課程（目前這張訂單已開通 ${count ?? 0} 門，已開通的不會重複）。` +
+      "有新開通時會寄一封開通通知信給客人（同一筆訂單只寄一次）。",
+    okMessage: "已處理。",
+    run: () => regrantEntitlements(o.id),
+  };
+}
+
+/** revoke_course_access：關閉「這張訂單帶來的」某門課。帳號由訂單決定。 */
+export async function previewRevoke(db: Db, order: string, productId: string): Promise<Preview> {
+  const o = await findOrder(db, order);
+  if (!o) return { ok: false, error: `找不到訂單 ${order}。` };
+  const p = await readProduct(db, productId);
+  if (!p) return { ok: false, error: `找不到課程 ${productId}。` };
+  const base = orderBase(o);
+  base.current = { ...base.current, product_title: p.title };
+  if (!o.user_id) return blocked(base, "這筆訂單沒有綁定會員帳號，沒有權限可以關閉。");
+  const { data: entRaw, error } = await db
+    .from("entitlements")
+    .select("order_id")
+    .eq("user_id", o.user_id)
+    .eq("product_id", p.id)
+    .maybeSingle();
+  if (error) throw new Error(`[mcp-requests] 讀取開通紀錄失敗：${error.message}`);
+  const ent = entRaw as { order_id: string | null } | null;
+  if (!ent) return blocked(base, "這個帳號沒有這門課的觀看權限（可能已經被關掉了）。");
+  // 只能關「這張訂單」帶來的課，關到別張訂單或訂閱開的課很容易看漏。
+  if (ent.order_id !== o.id) {
+    const { count, error: cErr } = await db
+      .from("order_items")
+      .select("id", { count: "exact", head: true })
+      .eq("order_id", o.id)
+      .eq("product_id", p.id);
+    if (cErr) throw new Error(`[mcp-requests] 讀取品項失敗：${cErr.message}`);
+    if (!count) return blocked(base, "這門課不是這張訂單買的，不能用這張訂單關閉。請改用開通那門課的訂單。");
+  }
+  // 🔴 帳號 id 從訂單讀，不讓 AI 指定 —— 否則可以拿 A 訂單去關 B 的課。
+  const userId = o.user_id;
+  return {
+    ok: true,
+    ...base,
+    willExecute: true,
+    message: `將關閉訂單 ${o.order_no} 綁定的會員帳號對「${p.title}」的觀看權限，客人會立刻看不到課。要恢復得用 regrant_entitlements。`,
+    okMessage: "已關閉觀看權限。",
+    run: () => revokeCourseAccess(o.id, userId, p.id),
+  };
+}
+
+/** adjust_seats：名額 ±1。 */
+export async function previewAdjustSeats(db: Db, sessionId: string, delta: number): Promise<Preview> {
+  const s = await readSession(db, sessionId);
+  if (!s) return { ok: false, error: `找不到場次 ${sessionId}。` };
+  const base = {
+    entity: "session" as const,
+    entityId: s.id,
+    ref: sessionRef(s),
+    current: { seats_taken: s.seats_taken, capacity: s.capacity, status: s.status },
+  };
+  if (delta !== 1 && delta !== -1) return blocked(base, "名額一次只能加減 1。");
+  if (delta > 0 && s.seats_taken >= s.capacity) return blocked(base, `已經達到名額上限 ${s.capacity} 人，不能再加。`);
+  if (delta < 0 && s.seats_taken <= 0) return blocked(base, "已經是 0 人，不能再減。");
+  return {
+    ok: true,
+    ...base,
+    willExecute: true,
+    message: `將把${sessionRef(s)}的已報名人數 ${s.seats_taken} → ${s.seats_taken + delta}（上限 ${s.capacity}）。`,
+    okMessage: "名額已調整。",
+    run: () => adjustSeats(s.id, delta),
+  };
+}
+
+/** set_session_status：照後台的場次狀態白名單。 */
+export async function previewSetSessionStatus(db: Db, sessionId: string, next: SessionStatus): Promise<Preview> {
+  const s = await readSession(db, sessionId);
+  if (!s) return { ok: false, error: `找不到場次 ${sessionId}。` };
+  const current = toSessionStatus(s.status);
+  const target = toSessionStatus(next);
+  const base = {
+    entity: "session" as const,
+    entityId: s.id,
+    ref: sessionRef(s),
+    current: { status: current, status_label: SESSION_STATUS_LABEL[current], seats_taken: s.seats_taken, capacity: s.capacity },
+  };
+  if (target === "full") return blocked(base, "「已額滿」由系統依名額自動判定，不能手動設定。");
+  if (current === target) return blocked(base, `這個場次已經是「${SESSION_STATUS_LABEL[target]}」了。`);
+  if (!canTransitionSession(current, target)) {
+    return blocked(base, `不能從「${SESSION_STATUS_LABEL[current]}」改成「${SESSION_STATUS_LABEL[target]}」。`);
+  }
+  return {
+    ok: true,
+    ...base,
+    willExecute: true,
+    message: `將把${sessionRef(s)}從「${SESSION_STATUS_LABEL[current]}」改成「${SESSION_STATUS_LABEL[target]}」。`,
+    okMessage: "場次狀態已更新。",
+    run: () => setSessionStatus(s.id, target),
+  };
+}
+
+/** publish_product / unpublish_product */
+export async function previewTogglePublish(db: Db, productId: string, next: boolean): Promise<Preview> {
+  const p = await readProduct(db, productId);
+  if (!p) return { ok: false, error: `找不到課程 ${productId}。` };
+  const base = {
+    entity: "product" as const,
+    entityId: p.id,
+    ref: `「${p.title}」`,
+    current: { title: p.title, is_published: p.is_published },
+  };
+  if (p.is_published === next) return blocked(base, next ? "這門課已經是發布中了。" : "這門課已經是草稿了。");
+  return {
+    ok: true,
+    ...base,
+    willExecute: true,
+    message: next
+      ? `將發布「${p.title}」，前台會看得到。之後可以用 unpublish_product 下架。`
+      : `將把「${p.title}」下架改回草稿，前台看不到（已購買的學員不受影響）。之後可以用 publish_product 再發布。`,
+    okMessage: next ? "已發布。" : "已下架。",
+    run: () => togglePublish(p.id, next),
+  };
+}
+
+/** set_waitlist_status：照後台的候補狀態白名單。場次 id 從資料庫讀。 */
+export async function previewSetWaitlistStatus(db: Db, waitlistId: string, next: WaitlistStatus): Promise<Preview> {
+  if (!isUuid(waitlistId)) return { ok: false, error: `找不到候補紀錄 ${waitlistId}。` };
+  const { data, error } = await db
+    .from("workshop_waitlist")
+    .select("id, session_id, status")
+    .eq("id", waitlistId)
+    .maybeSingle();
+  if (error) throw new Error(`[mcp-requests] 讀取候補失敗：${error.message}`);
+  const row = data as { id: string; session_id: string; status: string } | null;
+  if (!row) return { ok: false, error: `找不到候補紀錄 ${waitlistId}。` };
+  const current = toWaitlistStatus(row.status);
+  const target = toWaitlistStatus(next);
+  const base = {
+    entity: "waitlist" as const,
+    entityId: row.id,
+    ref: `候補紀錄 ${row.id}`,
+    current: { status: current, status_label: WAITLIST_STATUS_LABEL[current], session_id: row.session_id },
+  };
+  if (current === target) return blocked(base, `這筆已經是「${WAITLIST_STATUS_LABEL[target]}」了。`);
+  if (!canTransitionWaitlist(current, target)) {
+    return blocked(base, `不能從「${WAITLIST_STATUS_LABEL[current]}」改成「${WAITLIST_STATUS_LABEL[target]}」。`);
+  }
+  return {
+    ok: true,
+    ...base,
+    willExecute: true,
+    message:
+      `將把這筆候補從「${WAITLIST_STATUS_LABEL[current]}」改成「${WAITLIST_STATUS_LABEL[target]}」。` +
+      (target === "cancelled" ? "⚠️「已取消」是終點，改了就不能復原。" : ""),
+    okMessage: "候補狀態已更新。",
+    run: () => setWaitlistStatus(row.id, row.session_id, target),
+  };
+}
 
 /* ============================================================ 兩步確認 */
 
 /** 透過 MCP 重寄設定密碼信的冷卻時間 */
 const RESEND_COOLDOWN_MS = 10 * 60 * 1000;
 
-export type TwoStepTool = "cancel_order" | "adjust_seats" | "resend_setup_email";
+export type TwoStepTool = "resend_setup_email";
 
-/** 兩步確認的狀態指紋與預檢。args 已經是正規化過的（order_id / session_id）。 */
-export async function twoStepSnapshot(
-  db: Db,
-  tool: TwoStepTool,
-  args: TokenArgs,
-): Promise<Snapshot & { preview?: string }> {
-  if (tool === "cancel_order") {
-    const o = await readOrder(db, args.order_id);
-    if (!o) return { ok: false, error: NOT_FOUND_ORDER };
-    const check = checkTransition(o.status, "cancelled");
-    if (!check.ok) return { ok: false, error: check.message };
-    return {
-      ok: true,
-      state: `status=${o.status}`,
-      entity: "order",
-      entityId: o.id,
-      ref: o.order_no,
-      ctx: {},
-      preview: `將取消訂單 ${o.order_no}（${money(o.total)}，目前「${isOrderStatus(o.status) ? ORDER_STATUS_LABELS[o.status] : o.status}」）。取消後是最終狀態，不能再改回。`,
-    };
-  }
+export type Snapshot =
+  | { ok: true; state: string; preview: string }
+  | { ok: false; error: string };
 
-  if (tool === "adjust_seats") {
-    const s = await readSession(db, args.session_id);
-    if (!s) return { ok: false, error: "找不到這個場次。" };
-    const delta = args.delta;
-    if (delta !== 1 && delta !== -1) return { ok: false, error: "名額一次只能加減 1。" };
-    if (delta > 0 && s.seats_taken >= s.capacity) {
-      return { ok: false, error: `已經達到名額上限 ${s.capacity} 人，不能再加。` };
-    }
-    if (delta < 0 && s.seats_taken <= 0) {
-      return { ok: false, error: "已經是 0 人，不能再減。" };
-    }
-    return {
-      ok: true,
-      state: `seats=${s.seats_taken};cap=${s.capacity}`,
-      entity: "session",
-      entityId: s.id,
-      ref: sessionRef(s),
-      ctx: {},
-      preview: `將把${sessionRef(s)}的已報名人數 ${s.seats_taken} → ${s.seats_taken + delta}（上限 ${s.capacity}）。`,
-    };
-  }
-
-  // resend_setup_email
+/** 兩步確認（目前只有 resend_setup_email）的狀態指紋與預檢。 */
+export async function twoStepSnapshot(db: Db, _tool: TwoStepTool, args: TokenArgs): Promise<Snapshot> {
   const o = await readOrder(db, args.order_id);
   if (!o) return { ok: false, error: NOT_FOUND_ORDER };
   if (!o.user_id || !o.contact_email) {
@@ -257,337 +519,6 @@ export async function twoStepSnapshot(
   return {
     ok: true,
     state: `user=${o.user_id};last=${lastAt}`,
-    entity: "order",
-    entityId: o.id,
-    ref: o.order_no,
-    ctx: {},
     preview: `將重寄設定密碼信給訂單 ${o.order_no} 的聯絡信箱（客人會收到一封新信，連結一小時內有效）。`,
   };
-}
-
-/* ======================================================== 本人在後台確認 */
-
-export type ApprovalTool =
-  | "mark_order_paid"
-  | "refund_order"
-  | "mark_refunded_manually"
-  | "reissue_invoice"
-  | "void_invoice"
-  | "force_grant_entitlements"
-  | "revoke_course_access"
-  | "delete_product"
-  | "delete_session";
-
-type ApprovalDef = {
-  /** 固定文案。確認頁的標題 —— 不是 AI 寫的 */
-  title: string;
-  /** 固定文案：按下確認會發生什麼 */
-  effect: string;
-  capability: Capability;
-  snapshot: (db: Db, args: TokenArgs) => Promise<Snapshot>;
-  /** 確認頁要顯示的事實，全部從資料庫讀 */
-  summary: (db: Db, args: TokenArgs) => Promise<SummaryRow[] | null>;
-  /**
-   * 呼叫原本的 server action。在確認頁的 server action 裡執行，
-   * 此時 getStaff() 讀的是真人的 cookie。
-   * `input` 是確認頁表單上由本人填寫／確認的值（目前只有作廢原因）。
-   */
-  execute: (args: TokenArgs, snap: Extract<Snapshot, { ok: true }>, input: { reason?: string }) => Promise<ActionOutcome>;
-};
-
-/** 訂單類共用的摘要：從資料庫讀，絕不用 token 裡的文字。 */
-async function orderSummary(db: Db, orderId: unknown): Promise<SummaryRow[] | null> {
-  const o = await readOrder(db, orderId);
-  if (!o) return null;
-  const detail = await loadOrderDetail(db, o.id);
-  const items = (detail?.items ?? [])
-    .map((it) => `${it.productTitle ?? "（已刪除的商品）"}（單價 ${money(it.unitPrice)}）× ${it.qty}`)
-    .join("、");
-  const inv = await readInvoice(db, o.id);
-  const status = isOrderStatus(o.status) ? ORDER_STATUS_LABELS[o.status] : o.status;
-  return [
-    { label: "訂單編號", value: o.order_no, strong: true },
-    { label: "金額", value: money(o.total), strong: true },
-    ...(o.price_unverified
-      ? [{ label: "金額核對", value: "⚠️ 金額未核對（下單金額與商品定價不符，請逐項核對單價）", strong: true }]
-      : []),
-    { label: "目前狀態", value: status, strong: true },
-    { label: "付款方式", value: paymentMethodLabel(o.payment_method) },
-    {
-      label: "收款管道",
-      value:
-        o.payment_provider === "blackcat"
-          ? `黑貓 PAY 線上刷卡${o.payment_paid_amount != null ? `（實收 ${money(o.payment_paid_amount)}）` : ""}`
-          : "人工收款（非線上金流）",
-    },
-    { label: "聯絡人", value: [o.contact_name, o.contact_phone].filter(Boolean).join("　") || "—" },
-    { label: "Email", value: o.contact_email ?? "—" },
-    { label: "品項", value: items || "—" },
-    { label: "成立時間", value: formatTaipei(o.created_at) || "—" },
-    { label: "付款時間", value: formatTaipei(o.paid_at) || "—" },
-    {
-      label: "發票",
-      value: inv
-        ? `${inv.invoice_number ?? "（尚無號碼）"}（${inv.status}）`
-        : "尚未建立",
-    },
-  ];
-}
-
-function orderStatusSnapshot(to: "paid" | "refunded") {
-  return async (db: Db, args: TokenArgs): Promise<Snapshot> => {
-    const o = await readOrder(db, args.order_id);
-    if (!o) return { ok: false, error: NOT_FOUND_ORDER };
-    const check = checkTransition(o.status, to);
-    if (!check.ok) return { ok: false, error: check.message };
-    return { ok: true, state: `status=${o.status}`, entity: "order", entityId: o.id, ref: o.order_no, ctx: {} };
-  };
-}
-
-export const APPROVAL_TOOLS: Record<ApprovalTool, ApprovalDef> = {
-  mark_order_paid: {
-    title: "標記訂單為已收款",
-    effect:
-      "訂單改成「已收款」，佔用工作坊名額、開通線上課程，並寄出開通通知信給客人。之後只能走退款，不能改回待收款。",
-    capability: "orders:write",
-    snapshot: orderStatusSnapshot("paid"),
-    summary: (db, args) => orderSummary(db, args.order_id),
-    execute: (args) => markOrderPaid(String(args.order_id)),
-  },
-
-  refund_order: {
-    title: "退款（線上刷卡會真的呼叫黑貓 PAY 退刷）",
-    effect:
-      "若這筆是黑貓 PAY 線上刷卡，系統會立刻向黑貓 PAY 送出退款，成功後訂單改成「已退款」、釋出工作坊名額、作廢已開的發票。人工收款的訂單只改狀態，錢要另外匯回給客人。這個動作不能復原。",
-    capability: "orders:write",
-    snapshot: orderStatusSnapshot("refunded"),
-    summary: (db, args) => orderSummary(db, args.order_id),
-    execute: (args) => refundOrder(String(args.order_id)),
-  },
-
-  mark_refunded_manually: {
-    title: "標記為已退款（人工，已在別處退過錢）",
-    effect:
-      "系統不會呼叫金流，只把訂單改成「已退款」、釋出名額、作廢已開的發票。請確定錢已經在黑貓 PAY 後台或其他管道退給客人了。這個動作不能復原。",
-    capability: "orders:write",
-    snapshot: orderStatusSnapshot("refunded"),
-    summary: (db, args) => orderSummary(db, args.order_id),
-    execute: (args) => markRefundedManually(String(args.order_id)),
-  },
-
-  reissue_invoice: {
-    title: "補開電子發票",
-    effect: "透過 Amego 為這筆訂單開立電子發票。發票是稅務憑證，開出後只能作廢，且同一張訂單作廢後不能再用系統重開。",
-    capability: "orders:write",
-    snapshot: async (db, args) => {
-      const o = await readOrder(db, args.order_id);
-      if (!o) return { ok: false, error: NOT_FOUND_ORDER };
-      if (o.status !== "paid") {
-        return { ok: false, error: "只有「已收款」的訂單可以補開發票。" };
-      }
-      const inv = await readInvoice(db, o.id);
-      if (inv?.status === "issued") return { ok: false, error: `這張訂單已經開過發票 ${inv.invoice_number ?? ""}。` };
-      if (inv?.status === "voided") {
-        return { ok: false, error: "這張訂單的發票已經作廢，不能用同一張訂單重開，請到 Amego 後台手動處理。" };
-      }
-      return {
-        ok: true,
-        state: `status=${o.status};inv=${inv?.status ?? "none"}`,
-        entity: "order",
-        entityId: o.id,
-        ref: o.order_no,
-        ctx: {},
-      };
-    },
-    summary: (db, args) => orderSummary(db, args.order_id),
-    execute: (args) => reissueInvoice(String(args.order_id)),
-  },
-
-  void_invoice: {
-    title: "作廢電子發票",
-    effect:
-      "透過 Amego 作廢這張訂單的發票。作廢是終點：同一張訂單之後不能再用系統重開。這個動作不會改訂單狀態，也不會退款。",
-    capability: "orders:write",
-    snapshot: async (db, args) => {
-      const o = await readOrder(db, args.order_id);
-      if (!o) return { ok: false, error: NOT_FOUND_ORDER };
-      const inv = await readInvoice(db, o.id);
-      if (!inv) return { ok: false, error: "這張訂單沒有發票紀錄，沒有東西可以作廢。" };
-      if (inv.status !== "issued") {
-        return { ok: false, error: `這張訂單的發票目前是「${inv.status}」，只有已開立的發票可以作廢。` };
-      }
-      return {
-        ok: true,
-        state: `inv=${inv.status}:${inv.invoice_number ?? ""}`,
-        entity: "order",
-        entityId: o.id,
-        ref: o.order_no,
-        ctx: {},
-      };
-    },
-    summary: (db, args) => orderSummary(db, args.order_id),
-    execute: (args, _snap, input) =>
-      voidInvoiceAction(String(args.order_id), (input.reason ?? "").trim() || "後台手動作廢"),
-  },
-
-  force_grant_entitlements: {
-    title: "核對金額無誤並強制開通課程",
-    effect:
-      "解除這筆訂單的「金額未核對」旗標，並開通線上課程。按下確認等於由你本人聲明「我已核對金額無誤」，稽核會記在你名下。",
-    capability: "orders:write",
-    snapshot: async (db, args) => {
-      const o = await readOrder(db, args.order_id);
-      if (!o) return { ok: false, error: NOT_FOUND_ORDER };
-      if (o.status !== "paid") {
-        // 待收款就先強制開通的話，action 會先清掉旗標、再在開通那一步失敗 ——
-        // 旗標回不來，狀態指紋也變了，這張確認連結就再也用不了。
-        return { ok: false, error: "只有「已收款」的訂單可以強制開通。" };
-      }
-      if (o.price_unverified !== true) {
-        return { ok: false, error: "這筆訂單的金額旗標已經解除過了，不需要強制開通；要補開通請用 regrant_entitlements。" };
-      }
-      return {
-        ok: true,
-        state: `status=${o.status};pu=true`,
-        entity: "order",
-        entityId: o.id,
-        ref: o.order_no,
-        ctx: {},
-      };
-    },
-    summary: (db, args) => orderSummary(db, args.order_id),
-    execute: (args) => forceGrantEntitlements(String(args.order_id)),
-  },
-
-  revoke_course_access: {
-    title: "關閉課程觀看權限",
-    effect: "關閉這個會員帳號對下列課程的觀看權限，客人會立刻看不到課。",
-    capability: "orders:write",
-    snapshot: async (db, args) => {
-      const o = await readOrder(db, args.order_id);
-      if (!o) return { ok: false, error: NOT_FOUND_ORDER };
-      if (!o.user_id) return { ok: false, error: "這筆訂單沒有綁定會員帳號，沒有權限可以關閉。" };
-      if (!isUuid(args.product_id)) return { ok: false, error: "product_id 格式不對。" };
-      const { data: entRaw } = await db
-        .from("entitlements")
-        .select("product_id, order_id, granted_at")
-        .eq("user_id", o.user_id)
-        .eq("product_id", args.product_id)
-        .maybeSingle();
-      const ent = entRaw as { order_id: string | null; granted_at: string } | null;
-      if (!ent) return { ok: false, error: "這個帳號沒有這門課的觀看權限（可能已經被關掉了）。" };
-      // 只能關「這張訂單」帶來的課：確認頁列的是這張訂單的品項，
-      // 關到別張訂單或訂閱開的課，管理員很容易看漏。
-      if (ent.order_id !== o.id) {
-        const { count } = await db
-          .from("order_items")
-          .select("id", { count: "exact", head: true })
-          .eq("order_id", o.id)
-          .eq("product_id", args.product_id);
-        if (!count) {
-          return { ok: false, error: "這門課不是這張訂單買的，不能用這張訂單關閉。請改用開通那門課的訂單。" };
-        }
-      }
-      return {
-        ok: true,
-        // granted_at：關掉之後又被重新開通的話指紋不同，舊連結不會復活
-        state: `user=${o.user_id};ent=${ent.granted_at}`,
-        entity: "order",
-        entityId: o.id,
-        ref: o.order_no,
-        // 🔴 帳號 id 從訂單讀，不讓 AI 指定 —— 否則可以拿 A 訂單去關 B 的課。
-        ctx: { userId: o.user_id },
-      };
-    },
-    summary: async (db, args) => {
-      const rows = await orderSummary(db, args.order_id);
-      if (!rows) return null;
-      const p = await readProduct(db, args.product_id);
-      return [{ label: "要關閉的課程", value: p?.title ?? "（找不到這門課）", strong: true }, ...rows];
-    },
-    execute: (args, snap) =>
-      revokeCourseAccess(String(args.order_id), snap.ctx.userId, String(args.product_id)),
-  },
-
-  delete_product: {
-    title: "刪除課程／工作坊",
-    effect: "永久刪除這門課（含底下的場次與單元）。有人買過的課會被系統擋下，請改用下架。這個動作不能復原。",
-    capability: "catalog:write",
-    snapshot: async (db, args) => {
-      const p = await readProduct(db, args.product_id);
-      if (!p) return { ok: false, error: "找不到這門課。" };
-      const block = await checkProductDeletable(db as unknown as CountClient, p.id, async (id) => {
-        const { data, error } = await db.from("workshop_sessions").select("id").eq("product_id", id);
-        if (error) throw new Error(error.message);
-        return (data ?? []).map((row) => (row as unknown as { id: string }).id);
-      });
-      if (block.blocked) return { ok: false, error: block.reason };
-      return {
-        ok: true,
-        state: `upd=${p.updated_at};pub=${p.is_published}`,
-        entity: "product",
-        entityId: p.id,
-        ref: `「${p.title}」`,
-        ctx: {},
-      };
-    },
-    summary: async (db, args) => {
-      const p = await readProduct(db, args.product_id);
-      if (!p) return null;
-      const { count } = await db
-        .from("workshop_sessions")
-        .select("id", { count: "exact", head: true })
-        .eq("product_id", p.id);
-      return [
-        { label: "課程名稱", value: p.title, strong: true },
-        { label: "網址代稱", value: p.slug },
-        { label: "類型", value: p.type === "workshop" ? "實體工作坊" : p.type === "subscription" ? "訂閱" : "線上課程" },
-        { label: "目前狀態", value: p.is_published ? "發布中" : "草稿", strong: true },
-        { label: "底下的場次", value: `${count ?? "?"} 場（會一起刪除）` },
-      ];
-    },
-    execute: (args) => deleteProduct(String(args.product_id)),
-  },
-
-  delete_session: {
-    title: "刪除工作坊場次",
-    effect: "永久刪除這個場次。已有訂單指向這一場時系統會擋下，請改成「已取消」。這個動作不能復原。",
-    capability: "catalog:write",
-    snapshot: async (db, args) => {
-      const s = await readSession(db, args.session_id);
-      if (!s) return { ok: false, error: "找不到這個場次。" };
-      const block = await checkSessionDeletable(db as unknown as CountClient, s.id);
-      if (block.blocked) return { ok: false, error: block.reason };
-      return {
-        ok: true,
-        state: `upd=${s.updated_at};seats=${s.seats_taken};status=${s.status}`,
-        entity: "session",
-        entityId: s.id,
-        ref: sessionRef(s),
-        // 所屬課程從資料庫讀，deleteSession 會再用 product_id 比對一次
-        ctx: { productId: s.product_id },
-      };
-    },
-    summary: async (db, args) => {
-      const s = await readSession(db, args.session_id);
-      if (!s) return null;
-      return [
-        { label: "課程", value: sessionTitle(s), strong: true },
-        { label: "場次時間", value: formatTaipei(s.starts_at) || "—", strong: true },
-        { label: "地點", value: s.location ?? "—" },
-        { label: "名額", value: `${s.seats_taken} / ${s.capacity}` },
-        { label: "目前狀態", value: SESSION_STATUS_LABEL[toSessionStatus(s.status)] },
-      ];
-    },
-    execute: (_args, snap) => deleteSession(snap.entityId, snap.ctx.productId),
-  },
-};
-
-export function isApprovalTool(value: unknown): value is ApprovalTool {
-  return typeof value === "string" && Object.prototype.hasOwnProperty.call(APPROVAL_TOOLS, value);
-}
-
-/** 確認網址。 */
-export function confirmUrl(siteUrl: string, token: string): string {
-  return `${siteUrl.replace(/\/+$/, "")}/admin/mcp/confirm?t=${encodeURIComponent(token)}`;
 }

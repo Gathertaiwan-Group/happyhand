@@ -2,36 +2,31 @@ import "server-only";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 /**
- * MCP 寫入工具的簽章 token —— 「待確認請求」的全部狀態都在這裡面。
+ * MCP 兩步確認（confirm_token）的簽章 token。
  *
- * ## 為什麼是 token 而不是一張 pending_requests 表
+ * 目前只有 resend_setup_email 用它（會真的寄信給客人，所以第一次只回預覽與
+ * confirm_token，第二次帶同一個 token 才寄）。其他寫入工具改用 dry_run 預覽制，
+ * 退款與作廢發票改成「申請制」（lib/admin/mcp-pending.ts）—— 2026-11-10 拿掉了
+ * 「本人在後台確認」的確認連結與它的 approve token。
  *
- * 合併後的資料庫我們沒有 DDL 權限，不能開新表。所以把「誰提出、要做什麼、
- * 對哪一筆、當時那一筆是什麼狀態、什麼時候過期」全部簽進 token，
- * 伺服器端不存任何東西。
+ * ## 為什麼是 token 而不是一張表
+ *
+ * 合併後的資料庫我們沒有 DDL 權限，不能開新表。所以把「要做什麼、對哪一筆、
+ * 當時那一筆是什麼狀態、什麼時候過期」全部簽進 token，伺服器端不存任何東西。
  *
  * ## 沒有「已使用」紀錄，重放靠什麼擋
  *
- * 靠 `state`。token 記下提出當下那一筆資料的狀態（訂單 status、場次
- * seats_taken、發票號碼…），執行前與資料庫目前的狀態逐字比對，不一樣就拒絕。
- * 操作一旦執行，狀態就變了 —— 同一個 token 第二次一定對不上。
- * 這同時擋掉「舊連結在狀態改變後被重放成另一件事」（例如訂單被重新處理過之後，
- * 一條半小時前產生的退款連結）。
+ * 靠 `state`。token 記下提出當下那一筆資料的狀態（例如上一封重寄信的時間），
+ * 執行前與資料庫目前的狀態逐字比對，不一樣就拒絕。操作一旦執行，狀態就變了 ——
+ * 同一個 token 第二次一定對不上。
  *
- * ## 兩種 token，金鑰不同
+ * ## 金鑰
  *
- * - `approve`：本人在後台確認用（確認網址裡的 ?t=）。30 分鐘。
- * - `twostep`：MCP 兩步確認用（confirm_token）。10 分鐘。
- *
- * 金鑰由 MCP_TOKEN 依 label 衍生成兩把，所以一種 token 永遠驗不過另一種的
- * 簽章 —— AI 拿到的 confirm_token 不可能被當成「本人已確認」送進後台，
- * 反之亦然。payload 的 `k` 欄位是第二道（同一把金鑰外洩時的保險）。
- *
- * 不新增環境變數：rotate MCP_TOKEN 等於同時作廢所有待確認連結，這正是
- * token 外洩時要的行為。
+ * 由 MCP_TOKEN 依 label 衍生。payload 的 `k` 欄位是用途標記，驗證時必須相符。
+ * 不新增環境變數：rotate MCP_TOKEN 等於同時作廢所有未用的 confirm_token。
  */
 
-export type TokenKind = "approve" | "twostep";
+export type TokenKind = "twostep";
 
 /** 參數一律是扁平的純量。巢狀物件沒有必要，而且會讓「參數相同」的判斷變複雜。 */
 export type TokenArgs = Record<string, string | number | boolean>;
@@ -41,7 +36,7 @@ export type TokenPayload = {
   k: TokenKind;
   tool: string;
   args: TokenArgs;
-  /** 提出當下那一筆資料的狀態指紋。由各工具自己定義，見 lib/admin/mcp-requests.ts */
+  /** 提出當下那一筆資料的狀態指紋。見 lib/admin/mcp-requests.ts 的 twoStepSnapshot() */
   state: string;
   /** 簽發時間（epoch 秒） */
   iat: number;
@@ -62,16 +57,14 @@ export type VerifyResult =
   | { ok: false; reason: VerifyFailure };
 
 export const TTL_SECONDS: Record<TokenKind, number> = {
-  approve: 30 * 60,
   twostep: 10 * 60,
 };
 
 const LABEL: Record<TokenKind, string> = {
-  approve: "confirm-v1",
   twostep: "twostep-v1",
 };
 
-/** 給人看的失敗原因。確認頁與 MCP 兩邊共用。 */
+/** 給人看的失敗原因。 */
 export const VERIFY_FAILURE_MESSAGE: Record<VerifyFailure, string> = {
   unconfigured: "伺服器沒有設定 MCP 金鑰，無法驗證這個請求。",
   malformed: "這個確認碼格式不對（可能被截斷或改過）。",
@@ -184,7 +177,7 @@ export function verifyToken(
   if (now >= payload.exp) return { ok: false, reason: "expired" };
   // 有效期不能比這種 token 的 TTL 長、簽發時間不能在未來。正常簽發的 token
   // 一定滿足；不滿足代表是拿到金鑰的人自己簽的（例如讀到客戶端設定檔裡的
-  // MCP_TOKEN），把「30 分鐘」的保證守住。60 秒是時鐘誤差的容忍。
+  // MCP_TOKEN），把 TTL 的保證守住。60 秒是時鐘誤差的容忍。
   if (
     typeof payload.iat !== "number" ||
     payload.iat > now + 60 ||
@@ -202,7 +195,7 @@ export type ExecCheck = { ok: true } | { ok: false; message: string };
 
 /**
  * 兩步確認的第二步：token 必須是同一個工具、同一組參數。
- * 參數變了就失效 —— 否則 AI 可以拿「取消 A 訂單」的 token 去取消 B。
+ * 參數變了就失效 —— 否則 AI 可以拿「寄給 A 訂單」的 token 去寄給 B。
  */
 export function matchesRequest(
   payload: TokenPayload,

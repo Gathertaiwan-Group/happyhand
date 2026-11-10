@@ -60,6 +60,47 @@ export async function writeAudit(staff: Staff, input: AuditInput): Promise<void>
 }
 
 /**
+ * 寫一筆稽核，而且**回報有沒有寫成功**。
+ *
+ * 給「稽核那一列本身就是資料」的呼叫端用 —— 目前是 MCP 的退款／作廢申請與
+ * 後台的「不處理，關閉申請」（lib/admin/mcp-pending-repo.ts）。那裡的列沒寫進去
+ * 就等於申請不存在，絕不能像 writeAudit() 那樣吞掉錯誤、回「已建立」。
+ *
+ * writeAudit() 本身的行為不變：其他呼叫端的業務操作已經成功了，稽核失敗不該讓
+ * 使用者以為操作沒生效。
+ */
+export async function writeAuditStrict(
+  staff: Staff,
+  input: AuditInput,
+): Promise<{ ok: true; id: number } | { ok: false }> {
+  try {
+    const supabase = createServiceClient();
+    const { data, error } = await supabase
+      .from("audit_log")
+      .insert({
+        actor_id: staff.id === "" ? null : staff.id,
+        actor_email: staff.email,
+        actor_role: staff.via ?? staff.role,
+        action: input.action,
+        entity: input.entity,
+        entity_id: input.entityId ?? null,
+        summary: input.summary,
+        diff: input.diff ?? null,
+      })
+      .select("id")
+      .single();
+    if (error || !data) {
+      console.error("[audit] 寫入失敗（strict）", input.action, error?.message);
+      return { ok: false };
+    }
+    return { ok: true, id: Number((data as { id: number | string }).id) };
+  } catch (err) {
+    console.error("[audit] 寫入例外（strict）", input.action, err);
+    return { ok: false };
+  }
+}
+
+/**
  * 算出 before/after 之間真正有變動的欄位。
  * 用來餵 AuditInput.diff —— 整包塞進去會讓稽核頁充滿沒變的欄位。
  */

@@ -1,7 +1,10 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getStaff } from "@/lib/admin/guard";
+import { checkCapability, getStaff } from "@/lib/admin/guard";
+import { loadPendingMcpRequests } from "@/lib/admin/mcp-pending-repo";
+import type { PendingMcpRequest } from "@/lib/admin/mcp-pending";
+import { McpRequestBanner } from "@/components/admin/mcp-request-banner";
 import { can } from "@/lib/admin/roles";
 import { createServiceClient } from "@/lib/supabase/server";
 import { DataList } from "@/components/admin/data-list";
@@ -69,11 +72,15 @@ export default async function AdminDashboardPage() {
   const showOrders = can(staff.role, "orders:read");
   const showCatalog = can(staff.role, "catalog:read");
 
-  const [orderStats, catalogStats, sessions, health] = await Promise.all([
+  // AI（MCP）申請只給負責人看：用能力表（mcp:requests）判斷，不比對角色字串。
+  const showMcpRequests = (await checkCapability("mcp:requests")) !== null;
+
+  const [orderStats, catalogStats, sessions, health, mcpRequests] = await Promise.all([
     showOrders ? loadOrderStats(db) : null,
     showCatalog ? loadCatalogStats(db) : null,
     loadUpcomingSessions(db),
     showOrders ? loadHealthStats(db) : null,
+    showMcpRequests ? loadMcpRequests(db) : undefined,
   ]);
 
   return (
@@ -86,6 +93,9 @@ export default async function AdminDashboardPage() {
           你好，{staff.email ?? "同事"}。以下只顯示你權限範圍內的資料。
         </p>
       </div>
+
+      {/* AI 提出的退款／作廢申請（負責人限定）。沒有待處理時不渲染。 */}
+      {mcpRequests !== undefined && <McpRequestBanner requests={mcpRequests} />}
 
       {/* 🔴 需要處理的異常放最上面。
           「客人付了錢但看不到課」如果沒有一個每天會被看到的地方顯示，
@@ -496,4 +506,15 @@ function LoadError({ message }: { message: string }) {
       </span>
     </p>
   );
+}
+
+/** null = 讀取失敗（橫幅顯示「讀取失敗」，不當成沒有申請） */
+async function loadMcpRequests(db: Db | null): Promise<PendingMcpRequest[] | null> {
+  if (!db) return null;
+  try {
+    return await loadPendingMcpRequests(db);
+  } catch (err) {
+    console.error("[admin] 讀取 AI 申請失敗", err);
+    return null;
+  }
 }

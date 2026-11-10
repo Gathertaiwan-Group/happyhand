@@ -14,8 +14,8 @@ import type { NextConfig } from "next";
 /**
  * 後台防點擊劫持（clickjacking）。
  *
- * 情境：別的網站把 /admin/...（例如 MCP 的確認頁 /admin/mcp/confirm?t=…）放進
- * 透明 iframe，誘使已登入的管理員點到「確認退款」之類的按鈕。
+ * 情境：別的網站把 /admin/...（例如訂單頁）放進透明 iframe，
+ * 誘使已登入的管理員點到「退款」之類的按鈕。
  * frame-ancestors 'none' 讓瀏覽器拒絕把後台嵌進任何框架；X-Frame-Options 給
  * 不認 CSP frame-ancestors 的舊瀏覽器。
  *

@@ -99,6 +99,12 @@ export type ParsedFilters = {
   toIso: string;
   /** 被丟掉的條件，要顯示在畫面上而不是靜默忽略 */
   notes: string[];
+  /**
+   * 是否隱藏 AI（MCP）的預覽紀錄（action 以 mcp.preview. 開頭）。
+   * 預覽不改任何資料，但 AI 每預覽一次就記一筆，會把真正的操作淹沒。
+   * 「動作」條件裡有 preview 時才顯示它們。
+   */
+  hidePreviews: boolean;
 };
 
 export function parseAuditFilters(params: {
@@ -161,7 +167,9 @@ export function parseAuditFilters(params: {
     toIso = taipeiLocalToIso(`${filters.to}T23:59:59`);
   }
 
-  return { filters, fromIso, toIso, notes };
+  const hidePreviews = !filters.action.includes("preview");
+
+  return { filters, fromIso, toIso, notes, hidePreviews };
 }
 
 export function hasAnyFilter(filters: AuditFilters): boolean {
@@ -208,6 +216,8 @@ export async function loadAuditLog(
   // 子字串比對：打 `session` 會同時看到 session.create / session.set_status。
   // 上面的 TOKEN_PATTERN 已經保證這裡不會有 % _ , . 以外的語法字元。
   if (parsed.filters.action) query = query.ilike("action", `%${parsed.filters.action}%`);
+  // AI 預覽紀錄（mcp.preview.<工具名>）預設不列，見 ParsedFilters.hidePreviews。
+  if (parsed.hidePreviews) query = query.not("action", "like", "mcp.preview.%");
   if (parsed.fromIso) query = query.gte("created_at", parsed.fromIso);
   if (parsed.toIso) query = query.lte("created_at", parsed.toIso);
 

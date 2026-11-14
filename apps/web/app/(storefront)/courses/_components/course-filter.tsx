@@ -6,10 +6,22 @@ import { SITE } from "@/lib/site";
 import type { Product, ProductType } from "@/lib/content";
 import { CourseCard } from "./course-card";
 
-type FilterKey = "all" | ProductType;
+type FilterKey = "all" | "new" | ProductType;
+
+/**
+ * 「近期新課」用標籤決定，不是用建立時間。
+ *
+ * Product 身上沒有 created_at，而且「新」本來就不等於「最近建的」——
+ * 一門課可能先建成草稿擺兩個月才開賣。所以交給後台：課程標籤填
+ * NEW_TAG 的就會收進這個分類，不新了把標籤拿掉即可，不用改程式。
+ */
+const NEW_TAG = "近期新課";
+
+const isNew = (p: Product) => p.tags.includes(NEW_TAG);
 
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "全部" },
+  { key: "new", label: NEW_TAG },
   { key: "course", label: "線上課程" },
   { key: "workshop", label: "工作坊" },
   { key: "subscription", label: "訂閱" },
@@ -24,15 +36,22 @@ export function CourseFilter({ products }: { products: Product[] }) {
 
   const filters = useMemo(
     () =>
-      FILTERS.filter(
-        (f) => f.key === "all" || products.some((p) => p.type === f.key),
-      ),
+      FILTERS.filter((f) => {
+        if (f.key === "all") return true;
+        // 沒有任何課屬於這一類時不顯示晶片，免得按了是空的
+        if (f.key === "new") return products.some(isNew);
+        return products.some((p) => p.type === f.key);
+      }),
     [products],
   );
 
   const list = useMemo(
     () =>
-      active === "all" ? products : products.filter((p) => p.type === active),
+      active === "all"
+        ? products
+        : active === "new"
+          ? products.filter(isNew)
+          : products.filter((p) => p.type === active),
     [active, products],
   );
 

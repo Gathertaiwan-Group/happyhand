@@ -18,7 +18,7 @@ export type ProductType = (typeof PRODUCT_TYPES)[number];
 
 export const PRODUCT_TYPE_LABEL: Record<ProductType, string> = {
   course: "線上課程",
-  workshop: "實體工作坊",
+  workshop: "工作坊",
   subscription: "訂閱制",
 };
 

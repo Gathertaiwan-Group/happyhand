@@ -9,7 +9,7 @@ import { CheckoutSteps } from "@/app/(storefront)/checkout/_components/checkout-
 
 const TYPE_LABEL: Record<CartItem["type"], string> = {
   course: "線上課程",
-  workshop: "實體工作坊",
+  workshop: "工作坊",
 };
 
 /** 同一件商品的唯一鍵（工作坊要連場次一起看） */

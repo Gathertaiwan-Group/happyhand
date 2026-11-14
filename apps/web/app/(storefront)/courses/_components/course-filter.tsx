@@ -11,7 +11,7 @@ type FilterKey = "all" | ProductType;
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "全部" },
   { key: "course", label: "線上課程" },
-  { key: "workshop", label: "實體工作坊" },
+  { key: "workshop", label: "工作坊" },
   { key: "subscription", label: "訂閱" },
 ];
 

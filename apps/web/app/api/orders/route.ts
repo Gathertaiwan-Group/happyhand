@@ -18,6 +18,12 @@ import {
   normalizeInvoice,
   validateInvoice,
 } from "@/lib/invoice/validate";
+import {
+  checkPurchasable,
+  UUID_RE,
+  type PriceBook,
+  type PurchasableDb,
+} from "@/lib/orders/purchasable";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -79,8 +85,6 @@ function clientIp(request: Request): string {
 
 const PHONE_RE = /^09\d{8}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** 去掉念出來或抄寫時會弄錯的字元（0/O、1/I/L、5/S、8/B、2/Z） */
 const ORDER_NO_ALPHABET = "ACDEFGHJKMNPQRTUVWXY346789";
@@ -232,31 +236,24 @@ export async function POST(request: Request) {
   }
 
   // ---------- 3. 伺服器端重算金額 ----------
+  //
+  // 🔴 只賣「已上架」的商品與它自己的場次（見 lib/orders/purchasable.ts）。
+  //    草稿商品的 slug 很好猜（workshop-20261115），以前直接打這支 API 就買得到。
+  //    supabase 為 null 是「完全沒設定環境變數」的降級模式：查不到任何東西，
+  //    走原本的 price_unverified 路徑（那種訂單不會自動開通，要人工複核）。
   const supabase = getServiceClient();
-  const priceBook = await loadPriceBook(
-    supabase,
-    parsed.map((i) => i.slug).filter(Boolean),
-  );
-
-  // 資料庫連得上、卻查不到購物車裡的商品 → 那些商品已經下架或被刪掉了。
-  // 這時候寧可拒單也不要用前端送來的價格成交（那是使用者可以改的）。
-  // supabase 為 null 是「完全沒設定環境變數」的降級模式，走原本的
-  // price_unverified 路徑，不在這裡擋。
+  let priceBook: PriceBook = new Map();
+  let sessionPrices = new Map<string, number>();
   if (supabase) {
-    const missing = parsed.filter((it) => !priceBook.has(it.slug));
-    if (missing.length > 0) {
-      return bad(
-        `購物車裡有已經下架的課程（${missing.map((m) => m.title || m.slug).join("、")}），` +
-          `請回購物車移除，或加我們的 LINE ${SITE.lineId}，我們幫你處理。`,
-      );
-    }
+    // 轉成最小介面：supabase-js 的泛型型別直接比對會讓 tsc 遞迴爆掉（TS2589）
+    const check = await checkPurchasable(
+      supabase as unknown as PurchasableDb,
+      parsed,
+    );
+    if (!check.ok) return bad(check.message);
+    priceBook = check.priceBook;
+    sessionPrices = check.sessionPrices;
   }
-
-  // 梯次價優先於商品價。要在算 lines 之前拿到。
-  const sessionPrices = await loadSessionPrices(
-    supabase,
-    parsed.map((i) => i.sessionId).filter((id) => UUID_RE.test(id)),
-  );
 
   const lines: Line[] = parsed.map((it) => {
     const known = priceBook.get(it.slug);
@@ -534,83 +531,6 @@ async function checkSessionCapacity(
     console.error("[orders] 名額檢查例外，略過", err);
     return null;
   }
-}
-
-/**
- * 商品價格表。**只認資料庫**。
- *
- * 舊版會先鋪 lib/content.ts 的靜態價格再讓 DB 覆蓋。那在還沒有後台的時候
- * 是合理的保險，但現在後台可以改價了，靜態價就變成一顆定時炸彈：
- * 商品下架或改價之後，靜態價仍然查得到，於是會用一個過期的金額真的收錢。
- *
- * 查不到就是查不到，讓呼叫端拒單 —— 少賣一筆的代價遠低於收錯錢。
- */
-/**
- * 各梯次自己的價格。
- *
- * 🔴 同一門工作坊的不同梯次價格可以差很多（客戶現有站上從 1,200 到 12,800 都有），
- *    所以 workshop_sessions.price 有值時**優先於** products.price。
- *    漏掉這一支就是照商品定價收錢 —— 客人選了 1,200 的梯次卻被扣 12,000。
- *
- * null 代表這一梯沒有自訂價，回退商品價。**0 是合法價格**（免費場次），
- * 所以呼叫端一定要用 `??` 而不是 `||` 來取值。
- */
-async function loadSessionPrices(
-  supabase: ServiceClient | null,
-  sessionIds: string[],
-) {
-  const prices = new Map<string, number>();
-  const wanted = [...new Set(sessionIds.filter(Boolean))];
-  if (!supabase || wanted.length === 0) return prices;
-
-  try {
-    const { data, error } = await supabase
-      .from("workshop_sessions")
-      .select("id,price")
-      .in("id", wanted);
-    if (error) {
-      // 讀不到就回退商品價。不擋單 —— 但要留 log，因為金額可能不是客人看到的那個。
-      console.error("[orders] 讀場次價格失敗，改用商品定價", error.message);
-      return prices;
-    }
-    for (const row of (data ?? []) as { id: string; price: number | null }[]) {
-      if (typeof row.price === "number") prices.set(row.id, row.price);
-    }
-  } catch (err) {
-    console.error("[orders] 讀場次價格例外", err);
-  }
-  return prices;
-}
-
-async function loadPriceBook(supabase: ServiceClient | null, slugs: string[]) {
-  const wanted = new Set(slugs);
-  const book = new Map<string, { id: string | null; price: number }>();
-
-  if (!supabase || wanted.size === 0) return book;
-
-  try {
-    const { data, error } = await supabase
-      .from("products")
-      .select("id,slug,price")
-      .in("slug", [...wanted]);
-    if (error) {
-      console.error("[orders] 讀 products 失敗", error.message);
-      return book;
-    }
-    for (const row of (data ?? []) as {
-      id: string;
-      slug: string;
-      price: number;
-    }[]) {
-      if (typeof row.price === "number") {
-        book.set(row.slug, { id: row.id, price: row.price });
-      }
-    }
-  } catch (err) {
-    console.error("[orders] 讀 products 例外", err);
-  }
-
-  return book;
 }
 
 /**

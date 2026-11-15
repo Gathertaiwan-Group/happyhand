@@ -1,6 +1,7 @@
 import "server-only";
 import { createServiceClient } from "@/lib/supabase/server";
 import type { Staff } from "@/lib/admin/guard";
+import { resolveMcpActor } from "@/lib/admin/machine";
 
 /**
  * 後台稽核紀錄。
@@ -32,14 +33,18 @@ export type AuditInput = {
  *    （那會讓人以為操作沒生效而重按一次）。失敗時大聲 console.error，
  *    Vercel 的 log 撈得到。
  */
-export async function writeAudit(staff: Staff, input: AuditInput): Promise<void> {
+export async function writeAudit(actor: Staff, input: AuditInput): Promise<void> {
+  // MCP 請求裡傳 MCP_ACTOR 進來 → 換成這次請求的身分（OAuth 負責人本人，見 machine.ts）。
+  const staff = resolveMcpActor(actor);
   try {
     const supabase = createServiceClient();
     const { error } = await supabase.from("audit_log").insert({
       /*
         🔴 空字串要寫成 null。actor_id 有 FK 指向 auth.users，而機器身分
-           （MCP）不是一個人、沒有帳號。塞假值會違反外鍵，而這支刻意永不
+           （靜態 MCP_TOKEN）不是一個人、沒有帳號。塞假值會違反外鍵，而這支刻意永不
            throw —— 結果會是「退款成功但稽核完全沒留下」。
+           OAuth 連進來的 MCP 請求是負責人本人（真實 auth.users.id），照寫進 actor_id；
+           actor_role 仍是 "mcp"（via），看得出是 AI 代他做的。
       */
       actor_id: staff.id === "" ? null : staff.id,
       actor_email: staff.email,
@@ -70,9 +75,10 @@ export async function writeAudit(staff: Staff, input: AuditInput): Promise<void>
  * 使用者以為操作沒生效。
  */
 export async function writeAuditStrict(
-  staff: Staff,
+  actor: Staff,
   input: AuditInput,
 ): Promise<{ ok: true; id: number } | { ok: false }> {
+  const staff = resolveMcpActor(actor);
   try {
     const supabase = createServiceClient();
     const { data, error } = await supabase

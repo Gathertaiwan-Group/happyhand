@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 
@@ -15,7 +14,9 @@ import {
 import { parseAuditFilters, loadAuditLog } from "@/app/admin/audit/queries";
 import { WAITLIST_STATUSES } from "@/app/admin/sessions/queries";
 import { resendSetupEmail } from "@/app/admin/orders/account-actions";
-import { MCP_ACTOR, runAsMachine } from "@/lib/admin/machine";
+import { MCP_ACTOR, runAsMachine, runMcpRequest } from "@/lib/admin/machine";
+import type { Staff } from "@/lib/admin/guard";
+import { bearerChallenge, classifyMcpBearer, oauthBaseUrl, oauthEnabled } from "@/lib/mcp-oauth/core";
 import { writeAudit } from "@/lib/admin/audit";
 import {
   envSecret,
@@ -58,15 +59,34 @@ import { MCP_PREVIEW_ACTION_PREFIX, REFUND_REASON_MAX, VOID_REASON_MAX } from "@
  *     裡呼叫後台原本的 server action（MCP_ACTOR 刻意不含 staff:manage 與 mcp:requests）。
  *   - 兩步確認：只剩 resend_setup_email（會真的寄信給客人，含冷卻）。
  *
- * ## 為什麼不用 withMcpAuth
+ * ## 驗證：靜態 token 與 OAuth 並存（2026-11-15）
  *
- * `mcp-handler` 的 `withMcpAuth` 會在失敗時回 RFC 9728 的 OAuth challenge
- * （`WWW-Authenticate: Bearer resource_metadata=…`）。我們走的是靜態 token，
- * 根本沒有 authorization server —— 吐出那個標頭只會把 OAuth-first 的客戶端
- * 引進一條半套的 discovery，然後給使用者一個看不懂的錯誤。
- * 所以自己比對，401 不帶 resource_metadata，`/.well-known/oauth-*` 也不存在。
+ * 兩種 bearer token 都收（lib/mcp-oauth/core.ts 的 classifyMcpBearer）：
+ *   - 靜態 MCP_TOKEN（業主的 Claude Code，~/.happyhands-mcp-token）→ 機器身分 MCP_ACTOR，
+ *     稽核 actor_id=null。與之前一模一樣。
+ *   - OAuth access token（claude.ai 網頁版、Claude 手機 App、ChatGPT 的自訂連接器）→
+ *     **每一次請求**都用 service role 重查 profiles：這個人現在還有 mcp:connect（負責人）
+ *     才放行，角色被拔掉的下一個請求就 401。放行後以「他本人的 Staff（真實 id、email），
+ *     via=mcp，caps＝角色能力 ∩ MCP_ACTOR.caps（永遠不含 staff:manage）」執行，稽核記到真人。
+ *     做法是 runMcpRequest() 包住整個請求；底下 asMachine()／預覽稽核／申請制照舊傳
+ *     MCP_ACTOR，會被自動換成這次請求的身分（lib/admin/machine.ts 的 resolveMcpActor）。
  *
- * ## 協定
+ * 🔴 規則改了（推翻 10/15 的舊規則）：
+ *   舊規則「不可以暴露 /.well-known/oauth-*、401 不帶 resource_metadata、不用 withMcpAuth」
+ *   只適用於「只有靜態 token、沒有 authorization server」的時候 —— 那時吐 OAuth challenge
+ *   會把客戶端引進一條走不通的 discovery。現在 authorization server 是完整的
+ *   （lib/mcp-oauth/、app/.well-known/、app/oauth/），所以：
+ *   - 設了 MCP_OAUTH_SECRET（且是 Vercel production）時：/.well-known/oauth-protected-resource、
+ *     /.well-known/oauth-authorization-server 回 metadata；401 **必須**帶
+ *     `WWW-Authenticate: Bearer resource_metadata="…"` —— claude.ai 文件寫明沒有這個指標
+ *     （或 well-known 404）就會顯示「Couldn't reach the MCP server」，連不上。
+ *   - 沒設 MCP_OAUTH_SECRET：退回舊行為（discovery 404、401 只帶裸 `Bearer`）。
+ *   - ⚠️ 代價：有回報 Cursor 看到 OAuth discovery 會忽略設定的 header 硬走 OAuth。
+ *     Claude Code 帶對 header 就不會收到 401，不受影響。
+ *   - 仍然不用 mcp-handler 的 withMcpAuth：我們要在同一個閘門裡同時比對靜態 token、驗
+ *     OAuth token、重查角色，並在 503（查不到角色）與 401（不是負責人）之間分清楚。
+ *
+  * ## 協定
  *
  * `mcp-handler` 2.x 預設雙軌：新客戶端走 2026-07-28（無狀態、無握手），
  * 2025 世代的客戶端自動退回 stateless Streamable HTTP。
@@ -86,26 +106,58 @@ export const maxDuration = 300;
 /* ----------------------------------------------------------------- 驗證 */
 
 /**
- * 固定時間比較。
- * 直接用 === 比對 token 會隨著前綴相符的長度而有時間差，理論上可以一個字元
- * 一個字元試出來。成本是三行，沒有理由不做。
+ * 這一次請求要以誰的身分執行。null＝不放行（回傳的 Response 直接送出去）。
+ *
+ * 🔴 沒設 MCP_TOKEN 也沒開 OAuth 就整支關閉，不是「沒設就放行」。這支能讀到全站訂單的
+ *    姓名、電話、Email，預設必須是關的。
  */
-function tokenMatches(got: string, expected: string): boolean {
-  const a = Buffer.from(got);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
+async function authenticate(req: Request): Promise<{ actor: Staff } | { deny: Response }> {
+  const oauthSecret = process.env.MCP_OAUTH_SECRET;
+  const oauthOn = oauthEnabled(oauthSecret);
+  const base = oauthBaseUrl(req.url);
+  const unauthorized = (invalid: boolean, description?: string) =>
+    new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401,
+      headers: {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+        // 開了 OAuth：帶 resource_metadata（RFC 9728），客戶端靠它找到 authorization server。
+        // 沒開：只有裸的 Bearer（舊行為，見檔頭）。
+        "www-authenticate": oauthOn
+          ? bearerChallenge(base, invalid ? "invalid_token" : undefined, description)
+          : "Bearer",
+      },
+    });
 
-function authorized(req: Request): boolean {
-  const expected = process.env.MCP_TOKEN;
-  // 🔴 沒設 token 就整支關閉，不是「沒設就放行」。這支能讀到全站訂單的
-  //    姓名、電話、Email，預設必須是關的。
-  if (!expected) return false;
+  const bearer = classifyMcpBearer(
+    req.headers.get("authorization"),
+    process.env.MCP_TOKEN,
+    oauthSecret,
+    base,
+  );
+  if (bearer.kind === "static") return { actor: MCP_ACTOR };
+  if (bearer.kind === "deny") {
+    return { deny: unauthorized(bearer.reason === "invalid", bearer.reason === "invalid" ? "token is invalid or expired" : undefined) };
+  }
 
-  const header = req.headers.get("authorization") ?? "";
-  if (!header.startsWith("Bearer ")) return false;
-  return tokenMatches(header.slice("Bearer ".length), expected);
+  // OAuth：每一次都重查「這個人現在還是不是負責人」。
+  let owner: Staff | null;
+  try {
+    const { lookupOAuthOwner } = await import("@/lib/mcp-oauth/owner");
+    owner = await lookupOAuthOwner(bearer.token.sub, bearer.token.ep);
+  } catch (err) {
+    console.error("[mcp] OAuth 身分查詢失敗", err instanceof Error ? err.message : err);
+    // 查不到不等於「不是負責人」，但也絕不放行；回 503 讓客戶端稍後重試，
+    // 不要讓它以為 token 壞了而把負責人踢去重新授權。
+    return {
+      deny: new Response(JSON.stringify({ error: "temporarily_unavailable" }), {
+        status: 503,
+        headers: { "content-type": "application/json", "cache-control": "no-store", "retry-after": "5" },
+      }),
+    };
+  }
+  if (!owner) return { deny: unauthorized(true, "authorization revoked") };
+  return { actor: owner };
 }
 
 /**
@@ -206,6 +258,10 @@ function outcomeText(out: ActionOutcome, fallbackOk: string) {
 
 /**
  * 以機器身分呼叫一支 server action。
+ *
+ * 身分：這裡傳的是 MCP_ACTOR，但 runAsMachine() 會換成這一次請求的身分（POST 的
+ * runMcpRequest）：靜態 token＝MCP_ACTOR；OAuth＝授權的負責人本人（caps 受 MCP_ACTOR
+ * 白名單限制）。所有寫入工具（含之後新增的工具模組）都從這裡進，就會自動記到真人。
  *
  * 🔴 getStaff() 被 React.cache() 包著，這個 request 內**第一次**呼叫它的地方
  *    必須已經在 runAsMachine() 裡 —— 所以 action 一律從這裡進，而且 route 的
@@ -796,17 +852,8 @@ export async function POST(req: Request) {
       headers: { "content-type": "application/json" },
     });
   }
-  if (!authorized(req)) {
-    // 刻意只有一個裸的 Bearer challenge：不帶 resource_metadata，
-    // 也不提供 /.well-known/oauth-*。讓 OAuth-first 的客戶端乾淨地
-    // 失敗在這個 401，而不是失敗在一條走不通的 discovery 裡。
-    return new Response(JSON.stringify({ error: "unauthorized" }), {
-      status: 401,
-      headers: {
-        "content-type": "application/json",
-        "www-authenticate": "Bearer",
-      },
-    });
-  }
-  return mcp(req);
+  const auth = await authenticate(req);
+  if ("deny" in auth) return auth.deny;
+  // 整個 MCP 請求都在這次的身分底下跑：靜態 token＝MCP_ACTOR；OAuth＝負責人本人。
+  return runMcpRequest(auth.actor, () => mcp(req));
 }

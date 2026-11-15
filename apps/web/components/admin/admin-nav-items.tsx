@@ -90,6 +90,13 @@ export const ADMIN_NAV: AdminNavItem[] = [
     icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-3c0-.4 0-.8-.1-1.2l2-1.5-2-3.4-2.3.9a7.5 7.5 0 0 0-2-1.2L14.6 3h-4l-.4 2.6a7.5 7.5 0 0 0-2 1.2l-2.3-.9-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-.9a7.5 7.5 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7.5 7.5 0 0 0 2-1.2l2.3.9 2-3.4-2-1.5c.1-.4.1-.8.1-1.2Z",
   },
   {
+    // AI 連線（MCP OAuth）：連線說明＋撤銷。只給負責人（mcp:connect）。
+    href: "/admin/mcp/connect",
+    label: "AI 連線",
+    capability: "mcp:connect",
+    icon: "M9 3v4M15 3v4M7 7h10v4a5 5 0 0 1-10 0V7Zm5 9v5",
+  },
+  {
     href: "/admin/audit",
     label: "稽核紀錄",
     capability: "audit:read",

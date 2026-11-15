@@ -46,7 +46,19 @@ export type Capability =
    *    不能自己把申請關掉，也看不到後台的待處理清單。
    *    （申請本身是 audit_log 的一列，MCP 的 search_audit_log 讀得到稽核紀錄。）
    */
-  | "mcp:requests";
+  | "mcp:requests"
+  /**
+   * 授權 AI 連接器（claude.ai／Claude 手機 App／ChatGPT）用 OAuth 連進 /api/mcp。只給負責人。
+   *
+   * 用在兩個地方（lib/mcp-oauth/）：
+   *   - 同意頁 /admin/mcp/connect：requireCapability("mcp:connect") 才看得到「允許」。
+   *   - 每一次 MCP 請求、每一次換 token：重查 profiles.role，can(role, "mcp:connect")
+   *     不成立就立刻 401／invalid_grant —— 角色被拔掉，手上的 token 下一個請求就失效。
+   *
+   * 🔴 刻意不在 lib/admin/machine.ts 的 MCP_ACTOR.caps 裡（OAuth 身分的 caps 是
+   *    「角色能力 ∩ MCP_ACTOR.caps」，所以也不會有）：AI 不能替別人授權新的連線。
+   */
+  | "mcp:connect";
 
 /**
  * 角色 → 能力。
@@ -90,12 +102,19 @@ const MATRIX: Record<Role, readonly Capability[]> = {
     "staff:manage",
     "audit:read",
     "mcp:requests",
+    "mcp:connect",
   ],
 };
 
 export function can(role: Role | null | undefined, cap: Capability): boolean {
   if (!role) return false;
   return MATRIX[role]?.includes(cap) ?? false;
+}
+
+/** 這個角色擁有的全部能力（複本，改了不影響能力表）。 */
+export function capabilitiesOf(role: Role | null | undefined): Capability[] {
+  if (!role) return [];
+  return [...(MATRIX[role] ?? [])];
 }
 
 export function isStaffRole(role: string | null | undefined): role is StaffRole {

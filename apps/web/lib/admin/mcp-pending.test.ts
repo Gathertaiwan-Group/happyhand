@@ -164,10 +164,16 @@ test("舊申請不會復活：最新一筆失效後，較舊的那筆也不會�
 
 /* ------------------------------------------------------------ 防偽造 */
 
-test("🔴 申請列只認機器身分寫的樣子（actor_role=mcp、actor_id=null）", () => {
+test("OAuth 連進來的 MCP 以負責人本人身分寫的申請列（actor_role=mcp、actor_id=真人 UUID）也算", () => {
+  const r = req(A, "refund", { actor_role: "mcp", actor_id: OWNER_ID });
+  assert.equal(pendingMcpRequests([r], [order(A)]).length, 1);
+});
+
+test("🔴 申請列只認 MCP 寫的樣子（actor_role=mcp、actor_id=null 或 UUID）", () => {
   const fakes = [
     req(A, "refund", { actor_role: "owner", actor_id: OWNER_ID }),
-    req(A, "refund", { actor_role: "mcp", actor_id: OWNER_ID }),
+    req(A, "refund", { actor_role: "mcp", actor_id: "" }),
+    req(A, "refund", { actor_role: "mcp", actor_id: "not-a-uuid" }),
     req(A, "refund", { actor_role: "support", actor_id: null }),
     req(A, "refund", { actor_role: null }),
     req(A, "refund", { entity: "product" }),

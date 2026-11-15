@@ -25,13 +25,17 @@ import { machineActor } from "@/lib/admin/machine";
 export type Staff = {
   /**
    * auth.users 的 id。
-   * 🔴 機器身分（MCP）是空字串 —— 它不是一個人。audit_log.actor_id 有 FK
+   * 🔴 機器身分（靜態 MCP_TOKEN）是空字串 —— 它不是一個人。audit_log.actor_id 有 FK
    *    指向 auth.users，所以 writeAudit() 會把空字串寫成 null。
+   *    OAuth 連進來的 MCP 請求（lib/admin/machine.ts 的 oauthOwnerActor）是負責人本人的 id。
    */
   id: string;
   email: string | null;
   role: Role;
-  /** 非 cookie 身分的來源標記，目前只有 "mcp"。人類身分一律 undefined。 */
+  /**
+   * 非 cookie 身分的來源標記，目前只有 "mcp"（靜態 token 的機器身分，或 OAuth 負責人
+   * 透過 AI 操作）。人類在後台親手按的一律 undefined。
+   */
   via?: "mcp";
   /**
    * 機器身分專用的能力白名單，有值時**取代**角色推導。

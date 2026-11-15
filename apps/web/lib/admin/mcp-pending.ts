@@ -31,10 +31,11 @@
  *
  * ## 只信任該信任的列（防偽造）
  *
- * - 申請列必須 actor_role='mcp' 且 actor_id 為 null（機器身分寫出來的樣子）。
+ * - 申請列必須 actor_role='mcp'，actor_id 為 null（靜態 MCP_TOKEN 的機器身分）或 UUID
+ *   （2026-11-15 起 OAuth 連進來的 MCP 請求以負責人本人身分寫，actor_id＝他的 id）。
  * - 關閉列必須是有 mcp:requests 能力的角色（目前只有 owner）寫的、actor_id 不是 null
  *   （真人負責人的 cookie 身分）。
- *   MCP 寫不出這種列：機器身分的 actor_role 一律是 'mcp'、actor_id 一律是 null。
+ *   MCP 寫不出這種列：MCP 請求的 actor_role 一律是 'mcp'（Staff.via），不論是哪一種 token。
  * audit_log 只有 service role 寫得進去（RLS 開著、沒有任何 grant）。
  */
 
@@ -122,14 +123,15 @@ function isKind(value: string): value is McpRequestKind {
   return (MCP_REQUEST_KINDS as readonly string[]).includes(value);
 }
 
-/** 機器身分（MCP）寫出來的申請列長這樣；其他樣子一律不認。 */
+/** MCP 寫出來的申請列長這樣；其他樣子一律不認。
+ *  actor_id：靜態 token＝null；OAuth＝授權的負責人本人（UUID）。 */
 function isTrustedRequest(r: McpRequestLogRow): boolean {
   return (
     r.entity === "order" &&
     typeof r.entity_id === "string" &&
     UUID_RE.test(r.entity_id) &&
     r.actor_role === "mcp" &&
-    r.actor_id === null
+    (r.actor_id === null || (typeof r.actor_id === "string" && UUID_RE.test(r.actor_id)))
   );
 }
 

@@ -18,12 +18,12 @@ import { SessionEditor } from "@/components/admin/session-editor";
 import { BlockEditor } from "@/components/admin/block-editor";
 import { ConfirmButton } from "@/components/admin/confirm-button";
 import { deleteProduct, togglePublish } from "../actions";
+import { loadProductDetail } from "../queries";
 import {
   PRODUCT_TYPES,
   firstValue,
   pickOne,
   toProductType,
-  toSessionStatus,
   type LessonRow,
   type ProductRow,
   type SessionRow,
@@ -167,53 +167,13 @@ export default async function AdminProductEditPage({
 
   try {
     const db = createServiceClient();
+    const detail = await loadProductDetail(db, id);
+    if (!detail) notFound();
 
-    const { data, error } = await db
-      .from("products")
-      .select(
-        "id, type, slug, title, subtitle, description, price, compare_at_price, cover_url, is_published, is_featured, tags, benefits, sort_order, hero_lead, suitable_for, not_suitable_for, outcomes, curriculum_online, curriculum_onsite, includes, notes, asks_intake",
-      )
-      .eq("id", id)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!data) notFound();
-
-    const raw = data as unknown as ProductRow & { type: string };
-    product = { ...raw, type: toProductType(raw.type) };
-
-    const [lessonResult, sessionResult, blockResult] = await Promise.all([
-      db
-        .from("course_lessons")
-        .select(
-          "id, title, duration_sec, youtube_id, free_preview, body, sort_order, " +
-            // 講義與插圖一次撈進來，不要讓每個 LessonEditor 的列各自 fetch
-            // 一次（27 堂課就是 27 個請求）。
-            "lesson_materials(id, kind, file_name, size_bytes, caption, sort_order)",
-        )
-        .eq("product_id", id)
-        .order("sort_order", { ascending: true }),
-      db
-        .from("workshop_sessions")
-        .select("id, starts_at, ends_at, location, address, capacity, seats_taken, status, title, summary, format, price, notes")
-        .eq("product_id", id)
-        .order("starts_at", { ascending: true }),
-      db
-        .from("product_blocks")
-        .select("id, kind, sort_order, title, body, meta")
-        .eq("product_id", id)
-        .order("kind", { ascending: true })
-        .order("sort_order", { ascending: true }),
-    ]);
-
-    if (lessonResult.error) throw new Error(lessonResult.error.message);
-    if (sessionResult.error) throw new Error(sessionResult.error.message);
-    if (blockResult.error) throw new Error(blockResult.error.message);
-
-    lessons = (lessonResult.data ?? []) as unknown as LessonRow[];
-    blocks = (blockResult.data ?? []) as unknown as BlockRow[];
-    sessions = ((sessionResult.data ?? []) as unknown as (SessionRow & { status: string })[]).map(
-      (row) => ({ ...row, status: toSessionStatus(row.status) }),
-    );
+    product = detail.product;
+    lessons = detail.lessons;
+    blocks = detail.blocks;
+    sessions = detail.sessions;
   } catch (err) {
     // notFound() 是靠丟例外實作的，被這裡 catch 住就會變成「讀取失敗」
     // 而不是 404 畫面。原封不動往上丟。

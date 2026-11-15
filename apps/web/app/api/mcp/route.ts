@@ -46,6 +46,7 @@ import {
 } from "@/lib/admin/mcp-requests";
 import { createMcpRequest } from "@/lib/admin/mcp-pending-repo";
 import { MCP_PREVIEW_ACTION_PREFIX, REFUND_REASON_MAX, VOID_REASON_MAX } from "@/lib/admin/mcp-pending";
+import { registerContentTools } from "@/lib/mcp/content-tools";
 
 /**
  * MCP server —— 讓 AI 客戶端（Claude Code / claude.ai 連接器）查這個站的後台。
@@ -839,6 +840,8 @@ const mcp = createMcpHandler(
         return twoStep("resend_setup_email", { order_id: id }, confirm_token, () => resendSetupEmail(id));
       },
     );
+
+    registerContentTools(server, asMachine);
   },
   { serverInfo: { name: "happyhands", version: "2.0.0" } },
 );

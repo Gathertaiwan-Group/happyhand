@@ -3,13 +3,13 @@ import { requireCapability, adminErrorMessage, AdminAuthError } from "@/lib/admi
 import { createServiceClient } from "@/lib/supabase/server";
 import { DataList } from "@/components/admin/data-list";
 import { AdminSelect } from "@/components/admin/admin-field";
+import { loadProductList, type ProductListRow } from "../products/queries";
 import {
   PRODUCT_TYPE_LABEL,
   firstValue,
   formatMoney,
   pickOne,
   toProductType,
-  type ProductType,
 } from "../products/shared";
 import {
   FormNotice,
@@ -41,17 +41,7 @@ const COURSE_TYPES = ["course", "subscription"] as const;
 
 const PUBLISH_FILTERS = ["published", "draft"] as const;
 
-type Row = {
-  id: string;
-  type: ProductType;
-  slug: string;
-  title: string;
-  price: number;
-  is_published: boolean;
-  sort_order: number;
-  lessonCount: number;
-  sessionCount: number;
-};
+type Row = ProductListRow;
 
 export default async function AdminCoursesPage({
   searchParams,
@@ -81,46 +71,10 @@ export default async function AdminCoursesPage({
 
   try {
     const db = createServiceClient();
-
-    // course_lessons(count) / workshop_sessions(count) 是 PostgREST 的
-    // 內嵌聚合，一次往返就拿到每門課的單元數與場次數。
-    let query = db
-      .from("products")
-      .select(
-        "id, type, slug, title, price, is_published, sort_order, course_lessons(count), workshop_sessions(count)",
-      )
-      .in("type", typeFilter ? [typeFilter] : [...COURSE_TYPES])
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
-
-    if (publishFilter) query = query.eq("is_published", publishFilter === "published");
-
-    const { data, error } = await query;
-    if (error) throw new Error(error.message);
-
-    type Raw = {
-      id: string;
-      type: string;
-      slug: string;
-      title: string;
-      price: number;
-      is_published: boolean;
-      sort_order: number;
-      course_lessons: { count: number }[] | null;
-      workshop_sessions: { count: number }[] | null;
-    };
-
-    rows = ((data ?? []) as unknown as Raw[]).map((raw) => ({
-      id: raw.id,
-      type: toProductType(raw.type),
-      slug: raw.slug,
-      title: raw.title,
-      price: raw.price,
-      is_published: raw.is_published,
-      sort_order: raw.sort_order,
-      lessonCount: raw.course_lessons?.[0]?.count ?? 0,
-      sessionCount: raw.workshop_sessions?.[0]?.count ?? 0,
-    }));
+    rows = await loadProductList(db, {
+      types: typeFilter ? [toProductType(typeFilter)] : COURSE_TYPES,
+      published: publishFilter ? publishFilter === "published" : undefined,
+    });
   } catch (err) {
     console.error("[admin/courses] 讀取清單失敗", err);
     loadError = "課程清單讀取失敗，請重新整理一次。";

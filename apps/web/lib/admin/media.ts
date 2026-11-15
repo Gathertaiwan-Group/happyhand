@@ -129,3 +129,44 @@ export function isMediaUrl(url: string | null | undefined): boolean {
   const prefix = mediaPublicPrefix();
   return prefix !== "" && url.startsWith(prefix);
 }
+
+/* ----------------------------------------------------------- magic bytes */
+
+/**
+ * 只看檔頭，認 JPEG／PNG／WebP 三種。其他一律 null。
+ *
+ * processImage() 的 sharp 才是真正的把關（它還要解得開、格式在白名單）；
+ * 這一道是給「從網址抓／base64」這兩條沒有瀏覽器 MIME 可看的入口，
+ * 在交給 libvips 解碼之前先擋掉 SVG／HTML／TIFF 這類東西 ——
+ * libvips 讀得動 SVG，而 SVG 不該被任何一層當成「可能是圖片」去解析。
+ */
+export function sniffImageFormat(bytes: Uint8Array): "jpeg" | "png" | "webp" | null {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "jpeg";
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  ) {
+    return "png";
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return "webp";
+  }
+  return null;
+}

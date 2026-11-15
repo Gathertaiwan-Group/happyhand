@@ -27,6 +27,7 @@ import {
   SessionStatusChip,
 } from "../sessions/ui";
 import { loadSessionList } from "../sessions/queries";
+import { loadWorkshopProducts } from "../products/queries";
 
 /**
  * 工作坊：課程本身 ＋ 它的場次，一頁看完。
@@ -122,45 +123,17 @@ export default async function AdminWorkshopsPage({
       B 是既有的查詢，沿用它才不會出現兩套「誰算報名了」的定義 ——
       queries.ts:116-132 把那個定義標了 🔴，worker 寄提醒也用同一條。
     */
-    const [productResult, sessionList] = await Promise.all([
-      db
-        .from("products")
-        .select(
-          "id, type, slug, title, price, is_published, sort_order, " +
-            "workshop_sessions(id, starts_at, ends_at, location, capacity, seats_taken, status)",
-        )
-        .order("sort_order", { ascending: true })
-        .order("created_at", { ascending: true }),
+    const [products, sessionList] = await Promise.all([
+      loadWorkshopProducts(db),
       loadSessionList(db, { includePast }),
     ]);
-
-    if (productResult.error) throw new Error(productResult.error.message);
 
     // 已付款人數與候補數，用場次 id 對回去
     const stats = new Map(
       sessionList.rows.map((r) => [r.id, { paid: r.paidHeadcount, waiting: r.waitingCount }]),
     );
 
-    type RawSession = {
-      id: string;
-      starts_at: string;
-      ends_at: string;
-      location: string | null;
-      capacity: number;
-      seats_taken: number;
-      status: string;
-    };
-    type Raw = {
-      id: string;
-      type: string;
-      slug: string;
-      title: string;
-      price: number;
-      is_published: boolean;
-      workshop_sessions: RawSession[] | null;
-    };
-
-    rows = ((productResult.data ?? []) as unknown as Raw[])
+    rows = products
       .map((raw) => {
         const all = raw.workshop_sessions ?? [];
         const sessions = all

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
+import { BookOpen, CalendarDays, ReceiptText, UserRound } from "lucide-react";
 
 /**
  * 會員中心導覽。桌機是左側欄，手機是底部固定分頁。
@@ -26,7 +27,7 @@ import type { ReactNode } from "react";
 type Item = {
   href: string;
   label: string;
-  icon: ReactNode;
+  icon: LucideIcon;
   /** 只有完全相符才算目前頁面（避免 /account 把所有子頁都吃掉） */
   exact?: boolean;
 };
@@ -36,30 +37,22 @@ const ITEMS: Item[] = [
     href: "/account",
     label: "我的學習",
     exact: true,
-    icon: (
-      <path d="M3 5.5A1.5 1.5 0 0 1 4.5 4H10a3 3 0 0 1 2 .8A3 3 0 0 1 14 4h5.5A1.5 1.5 0 0 1 21 5.5v12a1.5 1.5 0 0 1-1.5 1.5H14a2 2 0 0 0-2 1 2 2 0 0 0-2-1H4.5A1.5 1.5 0 0 1 3 17.5v-12ZM12 6.8V19" />
-    ),
+    icon: BookOpen,
   },
   {
     href: "/account/orders",
     label: "我的訂單",
-    icon: (
-      <path d="M5 4h14l-1 16H6L5 4Zm4 4a3 3 0 0 0 6 0" />
-    ),
+    icon: ReceiptText,
   },
   {
     href: "/account/workshops",
     label: "工作坊",
-    icon: (
-      <path d="M4 6h16v14H4V6Zm0 4h16M8 3v4m8-4v4M8 15h4" />
-    ),
+    icon: CalendarDays,
   },
   {
     href: "/account/settings",
     label: "我的資料",
-    icon: (
-      <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-8 8a8 8 0 0 1 16 0" />
-    ),
+    icon: UserRound,
   },
 ];
 
@@ -68,21 +61,8 @@ function isCurrent(pathname: string, item: Item): boolean {
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-function Icon({ children }: { children: ReactNode }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-[26px] w-[26px]"
-      aria-hidden="true"
-    >
-      {children}
-    </svg>
-  );
+function NavIcon({ icon: I }: { icon: LucideIcon }) {
+  return <I aria-hidden="true" strokeWidth={1.7} className="h-[26px] w-[26px]" />;
 }
 
 /** 桌機左側欄。1280px（lg）以上才出現。 */
@@ -105,7 +85,7 @@ export function AccountSidebar() {
                     : "border-transparent text-brown-700 hover:bg-cream-100"
                 }`}
               >
-                <Icon>{item.icon}</Icon>
+                <NavIcon icon={item.icon} />
                 {item.label}
               </Link>
             </li>
@@ -139,7 +119,7 @@ export function AccountBottomNav() {
                     : "border-transparent text-brown-500"
                 }`}
               >
-                <Icon>{item.icon}</Icon>
+                <NavIcon icon={item.icon} />
                 {item.label}
               </Link>
             </li>

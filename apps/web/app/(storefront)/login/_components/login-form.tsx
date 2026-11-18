@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { LogIn, MessageCircle, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Field } from "@/components/ui/field";
@@ -125,12 +126,17 @@ export function LoginForm({
               setInfo("");
             }}
             aria-pressed={mode === m}
-            className={`min-h-[48px] rounded-pill text-[17px] transition-colors duration-200 ${
+            className={`inline-flex min-h-[48px] items-center justify-center gap-[6px] rounded-pill text-[17px] transition-colors duration-200 ${
               mode === m
                 ? "bg-caramel-dk text-white"
                 : "text-brown-500 hover:text-brown-900"
             }`}
           >
+            {m === "login" ? (
+              <LogIn aria-hidden="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
+            ) : (
+              <UserPlus aria-hidden="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
+            )}
             {m === "login" ? "登入" : "第一次使用"}
           </button>
         ))}
@@ -206,8 +212,9 @@ export function LoginForm({
           href={SITE.lineHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="-my-[7px] inline-block py-[11px] whitespace-nowrap text-brown-700 underline underline-offset-4 hover:text-caramel-dk"
+          className="-my-[7px] inline-flex items-center gap-[4px] py-[11px] whitespace-nowrap text-brown-700 underline underline-offset-4 hover:text-caramel-dk"
         >
+          <MessageCircle aria-hidden="true" strokeWidth={1.8} className="h-[18px] w-[18px] text-caramel-dk" />
           用 LINE 問我們
           <span className="sr-only">（會開啟 LINE）</span>
         </a>

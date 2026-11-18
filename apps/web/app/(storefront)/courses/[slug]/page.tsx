@@ -17,6 +17,9 @@ import { AddToCartButton } from "../_components/add-to-cart-button";
 import { CourseBuyBar } from "../_components/course-buy-bar";
 import { formatTotalDuration } from "../_components/format";
 import { cardTagLine } from "@/lib/course-category";
+import { Check, Clock, ListVideo, MessageCircle } from "lucide-react";
+import { ICON_CLASS, ICON_STROKE } from "@/components/ui/icon-text";
+import { ReadMore } from "@/components/ui/read-more";
 
 export const revalidate = 300;
 
@@ -72,14 +75,19 @@ export default async function CourseDetailPage({
   if (!product) notFound();
 
   const lessons = product.lessons ?? [];
-  const meta = [
+  // 重點清單：堂數、總長各配自己的圖示，後台填的重點用打勾
+  const meta: { text: string; icon: typeof Check; label?: string }[] = [
     ...(lessons.length
       ? [
-          `${lessons.length} 堂課`,
-          `總長 ${formatTotalDuration(lessons.map((l) => l.duration_sec))}`,
+          { text: `${lessons.length} 堂課`, icon: ListVideo },
+          {
+            text: formatTotalDuration(lessons.map((l) => l.duration_sec)),
+            icon: Clock,
+            label: "總長",
+          },
         ]
       : []),
-    ...product.benefits,
+    ...product.benefits.map((b) => ({ text: b, icon: Check })),
   ];
 
   return (
@@ -127,41 +135,41 @@ export default async function CourseDetailPage({
                 {product.title}
               </h1>
 
-              <p className="mt-[12px] text-[17px] leading-[1.85] text-brown-700 md:mt-[18px] md:text-[18px]">
-                {product.description}
-              </p>
+              {/* 簡介來自後台，長的話手機先收起來 */}
+              {(product.description?.length ?? 0) > 110 ? (
+                <ReadMore className="mt-[12px] md:mt-[18px]" collapsedHeight={128}>
+                  <p className="text-[17px] leading-[1.85] text-brown-700 md:text-[18px]">
+                    {product.description}
+                  </p>
+                </ReadMore>
+              ) : (
+                <p className="mt-[12px] text-[17px] leading-[1.85] text-brown-700 md:mt-[18px] md:text-[18px]">
+                  {product.description}
+                </p>
+              )}
 
               {/* 重點資訊。2026-11-18 手機版改版：以前是五顆小膠囊（16px、淺底），
                   像標籤雲不像資訊。改成打勾清單（參考 Hahow「關於課程」），
                   手機兩欄、字 17px。購買卡在手機上隱藏，這裡就是手機版的重點摘要。 */}
               {meta.length ? (
                 <ul className="mt-[16px] grid grid-cols-2 gap-x-[12px] gap-y-[10px] rounded-[18px] bg-cream-100 p-[16px] md:mt-[24px] md:flex md:flex-wrap md:gap-x-[28px] md:bg-transparent md:p-0">
-                  {meta.map((m) => (
+                  {meta.map(({ text, icon: MetaIcon, label }) => (
                     <li
-                      key={m}
+                      key={text}
                       className="flex items-start gap-[8px] text-[17px] leading-[1.5] text-brown-900"
                     >
-                      <svg
-                        viewBox="0 0 20 20"
-                        aria-hidden="true"
-                        className="mt-[3px] h-[18px] w-[18px] shrink-0 text-caramel-dk"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M4 10.5l4 4 8-9" />
-                      </svg>
-                      {m}
+                      <MetaIcon aria-hidden="true" strokeWidth={2} className={`mt-[2px] ${ICON_CLASS}`} />
+                      {label && <span className="sr-only">{label}</span>}
+                      {text}
                     </li>
                   ))}
                 </ul>
               ) : null}
 
               {/* 手機沒有右欄購買卡（價格與按鈕在底部固定列），LINE 的出口補在這裡 */}
-              <p className="mt-[16px] text-[17px] leading-[1.8] text-brown-700 md:hidden">
-                不會線上付款也沒關係，
+              <p className="mt-[16px] flex items-center gap-[6px] text-[17px] leading-[1.8] text-brown-700 md:hidden">
+                <MessageCircle aria-hidden="true" strokeWidth={ICON_STROKE} className={ICON_CLASS} />
+                不會線上付款？
                 <a
                   href={SITE.lineHref}
                   target="_blank"
@@ -171,7 +179,6 @@ export default async function CourseDetailPage({
                   用 LINE 問我們
                   <span className="sr-only">（會開啟 LINE）</span>
                 </a>
-                ，我們幫你處理。
               </p>
             </div>
 
@@ -214,34 +221,12 @@ export default async function CourseDetailPage({
                     className: "mt-[20px] md:mt-[10px]",
                   })}
                 >
+                  <MessageCircle aria-hidden="true" strokeWidth={ICON_STROKE} className="mr-[8px] h-[20px] w-[20px]" />
                   先用 LINE 問問
                   <span className="sr-only">（會開啟 LINE）</span>
                 </a>
 
-                <ul className="mt-[24px] flex flex-col gap-[12px] border-t border-sand-300 pt-[20px] text-[17px] leading-[1.6] text-brown-700">
-                  {product.benefits.map((b) => (
-                    <li key={b}>
-                      <span aria-hidden className="text-caramel-ink">
-                        ・
-                      </span>
-                      {b}
-                    </li>
-                  ))}
-                </ul>
-
-                <p className="mt-[20px] rounded-input bg-cream-100 px-[18px] py-[16px] text-[16px] leading-[1.8] text-brown-500">
-                  不會線上付款也沒關係，
-                  <a
-                    href={SITE.lineHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="-my-[7px] inline-block py-[11px] whitespace-nowrap text-brown-700 underline underline-offset-4 hover:text-caramel-dk"
-                  >
-                    用 LINE 問我們
-                    <span className="sr-only">（會開啟 LINE）</span>
-                  </a>
-                  ，我們幫你處理。
-                </p>
+                {/* 2026-11-18 減字：重點清單（左欄已有）與「不會線上付款…」（上面按鈕已有）不再重複 */}
               </div>
             </aside>
 
@@ -288,7 +273,8 @@ export default async function CourseDetailPage({
                     {TEACHER.paragraphs.map((p, i) => (
                       <p
                         key={i}
-                        className="mt-[10px] text-[16.5px] leading-[1.9] text-brown-500 md:text-[17.5px] md:leading-[1.95]"
+                        /* 手機只留第一段 */
+                        className={`mt-[10px] text-[16.5px] leading-[1.9] text-brown-500 md:text-[17.5px] md:leading-[1.95] ${i > 0 ? "hidden md:block" : ""}`}
                       >
                         {p}
                       </p>

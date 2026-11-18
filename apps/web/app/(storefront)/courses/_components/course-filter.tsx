@@ -1,5 +1,6 @@
 "use client";
 
+import { CircleHelp, LayoutGrid, MessageCircle, MonitorPlay, Sparkles, Users, Video, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { buttonClass } from "@/components/ui/button";
@@ -41,9 +42,18 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 
 /** 每一類的一句話說明，選了之後出現在分類鈕下面（取代以前標題帶的長段落）。 */
 const HINT: Partial<Record<FilterKey, string>> = {
-  recorded: "買了就能永久回放，看不懂隨時倒帶重來。",
-  live: "排好時間的線上直播，在家打開視訊跟著老師做。",
-  onsite: "小班制，老師一個一個看過去，工具講義都準備好。",
+  recorded: "永久回放・隨時倒帶",
+  live: "在家開視訊・跟老師即時練",
+  onsite: "小班面對面・工具講義備好",
+};
+
+/** 分類鈕的圖示：三類跟首頁入口同一組 */
+const FILTER_ICON: Partial<Record<FilterKey, LucideIcon>> = {
+  all: LayoutGrid,
+  new: Sparkles,
+  recorded: MonitorPlay,
+  live: Video,
+  onsite: Users,
 };
 
 const matches = (p: ProductWithSessions, key: FilterKey) =>
@@ -149,6 +159,12 @@ function CourseFilterView({
                   : "border-sand-400 bg-white text-brown-900 hover:border-caramel-ink",
               ].join(" ")}
             >
+              {(() => {
+                const FIcon = FILTER_ICON[f.key];
+                return FIcon ? (
+                  <FIcon aria-hidden="true" strokeWidth={1.8} className="h-[20px] w-[20px] shrink-0" />
+                ) : null;
+              })()}
               {f.label}
               <span className={`text-[16px] ${isActive ? "text-cream-200" : "text-brown-500"}`}>
                 {n}
@@ -181,12 +197,10 @@ function CourseFilterView({
 
         {/* 每頁都要有的「用 LINE 問」出口（設計稿 273–277） */}
         <div className="mt-[8px] flex flex-col items-center justify-center rounded-[18px] border border-dashed border-sand-400 bg-cream-100 p-[22px] text-center md:mt-0 md:rounded-card md:p-[32px]">
-          <h3 className="font-serif text-[19px] leading-[1.5] text-brown-900 md:text-[21px] md:leading-[1.55]">
-            不確定從哪堂開始？
+          <h3 className="flex items-center gap-[8px] font-serif text-[19px] leading-[1.5] text-brown-900 md:text-[21px] md:leading-[1.55]">
+            <CircleHelp aria-hidden="true" strokeWidth={1.8} className="h-[22px] w-[22px] text-caramel-dk" />
+            不知道選哪堂？
           </h3>
-          <p className="mt-[8px] text-[17px] leading-[1.8] text-brown-700">
-            用 LINE 問我們，有真人陪你挑。
-          </p>
           <a
             href={SITE.lineHref}
             target="_blank"
@@ -196,7 +210,8 @@ function CourseFilterView({
               className: "mt-[14px] w-full md:w-auto",
             })}
           >
-            用 LINE 問我們
+            <MessageCircle aria-hidden="true" strokeWidth={1.8} className="mr-[8px] h-[20px] w-[20px]" />
+            用 LINE 問真人
             <span className="sr-only">（會開啟 LINE）</span>
           </a>
         </div>

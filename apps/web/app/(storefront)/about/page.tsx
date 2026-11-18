@@ -7,6 +7,18 @@ import { PageHero } from "@/app/_components/page-hero";
 import { CallBand } from "@/app/_components/call-band";
 import { TeacherFeature } from "@/app/_components/teacher-feature";
 import { getSiteSetting, type TeacherSetting } from "@/lib/data";
+import { ReadMore } from "@/components/ui/read-more";
+import {
+  Armchair,
+  Building2,
+  Hand,
+  Hash,
+  MapPin,
+  MessageCircle,
+  UserRound,
+  Wind,
+  type LucideIcon,
+} from "lucide-react";
 
 export const metadata: Metadata = {
   title: "品牌介紹",
@@ -15,22 +27,10 @@ export const metadata: Metadata = {
 };
 
 /** 「仁神術是什麼」沿用首頁三項理由的排版語彙（README §4.1 #3） */
-const WHAT_IS_JSJ = [
-  {
-    no: "一",
-    title: "用自己的手",
-    desc: "一雙手就夠了。放在自己身上，也可以放在家人身上，位置記熟了隨時都能做。",
-  },
-  {
-    no: "二",
-    title: "坐著就能做",
-    desc: "不用換衣服、不用墊子。坐在椅子上、躺在床上都行，膝蓋或腰不舒服也有替代姿勢。",
-  },
-  {
-    no: "三",
-    title: "慢慢來就好",
-    desc: "一個位置放個幾分鐘，呼吸放慢。做完覺得鬆一點，就是今天的收穫。",
-  },
+const WHAT_IS_JSJ: { icon: LucideIcon; title: string; desc: string }[] = [
+  { icon: Hand, title: "用自己的手", desc: "一雙手就夠，也能幫家人做。" },
+  { icon: Armchair, title: "坐著就能做", desc: "不用換衣服、不用墊子，躺著也行。" },
+  { icon: Wind, title: "慢慢來就好", desc: "一個位置放幾分鐘，呼吸放慢。" },
 ];
 
 const WHY = [
@@ -41,11 +41,11 @@ const WHY = [
   "這件事不難，難的是有沒有人陪你開始。",
 ];
 
-const COMPANY_ROWS = [
-  { label: "公司名稱", value: `${SITE.company} ${SITE.companyEn}` },
-  { label: "統一編號", value: SITE.taxId },
-  { label: "代表人", value: SITE.representative },
-  { label: "地址", value: SITE.address },
+const COMPANY_ROWS: { icon: LucideIcon; label: string; value: string }[] = [
+  { icon: Building2, label: "公司名稱", value: `${SITE.company} ${SITE.companyEn}` },
+  { icon: Hash, label: "統一編號", value: SITE.taxId },
+  { icon: UserRound, label: "代表人", value: SITE.representative },
+  { icon: MapPin, label: "地址", value: SITE.address },
 ];
 
 export const revalidate = 300;
@@ -87,21 +87,24 @@ export default async function AboutPage() {
 
         <div className="mx-auto max-w-maxw px-[20px] md:px-[40px]">
           <div className="border-t border-sand-300 md:grid md:grid-cols-3">
+            {/* 2026-11-18 減字：國字編號換成圖示，說明縮成一行；手機改成靠左的列 */}
             {WHAT_IS_JSJ.map((item, i) => (
               <div
-                key={item.no}
+                key={item.title}
                 className={[
-                  "border-b border-sand-300 px-[24px] py-[30px] text-center md:border-b-0 md:px-[40px] md:py-[52px]",
+                  "flex items-center gap-[14px] border-b border-sand-300 px-[4px] py-[18px] text-left md:block md:border-b-0 md:px-[40px] md:py-[52px] md:text-center",
                   i > 0 ? "md:border-l md:border-sand-300" : "",
                 ].join(" ")}
               >
-                <div className="font-serif text-[28px] text-caramel-ink md:text-[36px]">
-                  {item.no}
+                <span className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-full bg-cream-200 text-caramel-dk md:mx-auto md:h-[60px] md:w-[60px]">
+                  <item.icon aria-hidden="true" strokeWidth={1.8} className="h-[24px] w-[24px] md:h-[28px] md:w-[28px]" />
+                </span>
+                <div>
+                  <h3 className="t-h3 md:mt-[12px]">{item.title}</h3>
+                  <p className="t-body-sm mt-[2px] text-pretty text-brown-500 md:mt-[8px]">
+                    {item.desc}
+                  </p>
                 </div>
-                <h3 className="t-h3 mt-[8px]">{item.title}</h3>
-                <p className="t-body-sm mt-[10px] text-pretty text-brown-500">
-                  {item.desc}
-                </p>
               </div>
             ))}
           </div>
@@ -112,13 +115,16 @@ export default async function AboutPage() {
       <section className="bg-cream-100">
         <div className="mx-auto max-w-[860px] px-[20px] py-[40px] md:px-[40px] md:py-[72px]">
           <h2 className="t-h2">為什麼做這件事</h2>
-          <div className="mt-[18px] flex flex-col gap-[14px] md:mt-[26px] md:gap-[16px]">
-            {WHY.map((p) => (
-              <p key={p} className="t-body text-pretty text-brown-700">
-                {p}
-              </p>
-            ))}
-          </div>
+          {/* 手機先露出前兩段，其餘展開看（文字都還在） */}
+          <ReadMore collapsedHeight={200} moreLabel="繼續讀" fadeFrom="from-cream-100">
+            <div className="mt-[18px] flex flex-col gap-[14px] md:mt-[26px] md:gap-[16px]">
+              {WHY.map((p) => (
+                <p key={p} className="t-body text-pretty text-brown-700">
+                  {p}
+                </p>
+              ))}
+            </div>
+          </ReadMore>
         </div>
       </section>
 
@@ -147,7 +153,7 @@ export default async function AboutPage() {
         <div className="mx-auto max-w-[900px] px-[20px] py-[40px] md:px-[40px] md:py-[72px]">
           <h2 className="t-h2 text-center">關於好日子</h2>
           <p className="t-body mx-auto mt-[14px] max-w-[620px] text-center text-pretty text-brown-500 md:mt-[18px]">
-            快樂手是好日子股份有限公司的品牌。找得到人，也找得到地址，有事情用 LINE 說就好。
+            找得到人、找得到地址，有事用 LINE 說就好。
           </p>
 
           <dl className="mt-[24px] overflow-hidden rounded-card border border-sand-300 bg-white md:mt-[34px]">
@@ -156,12 +162,18 @@ export default async function AboutPage() {
                 key={row.label}
                 className="grid gap-[2px] border-b border-sand-300 px-[22px] py-[16px] md:grid-cols-[160px_1fr] md:items-baseline md:gap-[20px] md:px-[30px] md:py-[20px]"
               >
-                <dt className="t-caption text-brown-500">{row.label}</dt>
+                <dt className="t-caption flex items-center gap-[6px] text-brown-500">
+                  <row.icon aria-hidden="true" strokeWidth={1.8} className="h-[16px] w-[16px] shrink-0 text-caramel-dk" />
+                  {row.label}
+                </dt>
                 <dd className="t-body text-brown-900">{row.value}</dd>
               </div>
             ))}
             <div className="grid gap-[2px] px-[22px] py-[10px] md:grid-cols-[160px_1fr] md:items-center md:gap-[20px] md:px-[30px] md:py-[12px]">
-              <dt className="t-caption text-brown-500">LINE</dt>
+              <dt className="t-caption flex items-center gap-[6px] text-brown-500">
+                <MessageCircle aria-hidden="true" strokeWidth={1.8} className="h-[16px] w-[16px] shrink-0 text-caramel-dk" />
+                LINE
+              </dt>
               <dd>
                 <a
                   href={SITE.lineHref}

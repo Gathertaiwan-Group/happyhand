@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { formatPrice } from "@/lib/site";
 import { timeRange, twDate, type WorkshopRow } from "@/lib/data";
-import { formatTag } from "@/lib/session-format";
+import { Clock, MapPin, ChevronRight } from "lucide-react";
+import { FormatBadge, ICON_CLASS, ICON_STROKE } from "@/components/ui/icon-text";
 
 /**
  * 場次「列表卡」（首頁、/workshops 用）。2026-11-18 手機版改版。
@@ -45,7 +46,6 @@ export function SessionCard({
   const headline = session.sessionTitle?.trim() || session.title;
   const productLine =
     showProductName && session.sessionTitle?.trim() ? session.title : null;
-  const tag = formatTag(session.format);
   const time = timeRange(session.starts_at, session.ends_at);
   const place = session.format === "online" ? null : session.location?.trim();
   const summary = session.sessionSummary?.trim();
@@ -85,15 +85,22 @@ export function SessionCard({
             {headline}
           </h3>
 
-          <p className="mt-[6px] text-[16px] leading-[1.6] text-brown-700">
-            {tag && (
-              <span className="mr-[8px] inline-block rounded-full bg-brown-900 px-[9px] align-[1px] text-[14px] leading-[1.7] font-medium text-white">
-                {tag}
+          {/* 2026-11-18 減字：時間、地點前面改用圖示，線上標籤帶視訊圖示 */}
+          <div className="mt-[6px] flex flex-col gap-[2px] text-[16px] leading-[1.6] text-brown-700">
+            <span className="flex flex-wrap items-center gap-x-[8px]">
+              <FormatBadge format={session.format} />
+              <span className="inline-flex items-start gap-[6px]">
+                <Clock aria-hidden="true" strokeWidth={ICON_STROKE} className={`mt-[0.2em] ${ICON_CLASS}`} />
+                <span><span className="sr-only">時間：</span>{time}</span>
+              </span>
+            </span>
+            {place && (
+              <span className="flex items-start gap-[6px]">
+                <MapPin aria-hidden="true" strokeWidth={ICON_STROKE} className={`mt-[0.2em] ${ICON_CLASS}`} />
+                <span><span className="sr-only">地點：</span>{place}</span>
               </span>
             )}
-            {time}
-            {place ? `・${place}` : ""}
-          </p>
+          </div>
 
           {summary && (
             <p className="mt-[4px] line-clamp-2 text-[16px] leading-[1.6] text-brown-500">
@@ -106,19 +113,12 @@ export function SessionCard({
               {priceText}
             </span>
             <span className="inline-flex items-center gap-[4px] text-[16px] font-medium whitespace-nowrap text-brown-900">
-              {soldOut ? "已額滿・可候補" : "看介紹・報名"}
-              <svg
-                viewBox="0 0 20 20"
+              {soldOut ? "額滿・候補" : "報名"}
+              <ChevronRight
                 aria-hidden="true"
-                className="h-[16px] w-[16px] transition-transform duration-200 group-hover:translate-x-[2px]"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M7 4l6 6-6 6" />
-              </svg>
+                strokeWidth={2}
+                className="h-[18px] w-[18px] transition-transform duration-200 group-hover:translate-x-[2px]"
+              />
             </span>
           </div>
         </div>

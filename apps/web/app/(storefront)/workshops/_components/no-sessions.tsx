@@ -1,3 +1,4 @@
+import { CalendarX2, MessageCircle } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
 import { SITE } from "@/lib/site";
 
@@ -8,6 +9,7 @@ import { SITE } from "@/lib/site";
 export function NoSessions({ message }: { message?: string }) {
   return (
     <div className="rounded-card border border-dashed border-sand-400 bg-cream-100 p-[24px] text-center md:p-[40px]">
+      <CalendarX2 aria-hidden="true" strokeWidth={1.6} className="mx-auto mb-[8px] h-[36px] w-[36px] text-caramel-dk" />
       <p className="t-body mx-auto max-w-[560px] text-brown-500">
         {message ??
           "最近沒有安排場次，想知道下一場什麼時候開，用 LINE 問我們。"}
@@ -23,6 +25,7 @@ export function NoSessions({ message }: { message?: string }) {
             className: "w-full md:w-auto",
           })}
         >
+          <MessageCircle aria-hidden="true" strokeWidth={1.8} className="mr-[8px] h-[20px] w-[20px]" />
           用 LINE 問我們
           <span className="sr-only">（會開啟 LINE）</span>
         </a>

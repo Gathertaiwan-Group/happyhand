@@ -194,8 +194,8 @@ function NoAccess({
         </h1>
         <p className="t-body mt-[14px] text-pretty text-brown-700">
           {expired
-            ? `《${title}》的觀看期限已經到了。想繼續看的話用 LINE 跟我們說一聲，我們幫你處理。`
-            : `《${title}》還不在你的課程裡。如果你已經買了卻看到這一頁，可能是登入的信箱跟下單時填的不一樣——用 LINE 跟我們說，報你的名字就好。`}
+            ? `《${title}》想繼續看，用 LINE 跟我們說。`
+            : `《${title}》還不在你的課程裡。買了卻看到這頁？多半是登入信箱跟下單時不同，LINE 報名字我們幫你查。`}
         </p>
         <div className="mt-[24px] flex flex-col gap-[12px] sm:flex-row">
           {!expired && (
@@ -227,7 +227,7 @@ function NoLessons({ title }: { title: string }) {
       <div className="rounded-card border border-sand-400 bg-cream-100 px-[22px] py-[30px] md:px-[40px] md:py-[40px]">
         <h1 className="t-h2 text-brown-900">{title}</h1>
         <p className="t-body mt-[14px] text-pretty text-brown-700">
-          這門課的內容還在準備中。準備好我們會用 LINE 通知你，不用擔心錯過。
+          內容準備中，好了會用 LINE 通知你。
         </p>
         <div className="mt-[24px]">
           <LineButton />

@@ -32,7 +32,7 @@ export default async function CoursesPage() {
               找一堂適合你的課
             </h1>
             <p className="mt-[6px] text-[17px] leading-[1.75] text-pretty text-brown-700 md:mx-auto md:mt-[10px] md:max-w-[640px] md:text-[18px]">
-              先選上課方式：預錄課程可以永久回放，直播與工作坊跟老師一起練。
+              先選上課方式
             </p>
           </div>
         </section>

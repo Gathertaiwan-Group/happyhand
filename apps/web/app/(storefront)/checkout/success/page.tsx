@@ -3,6 +3,26 @@ import { LinkButton, buttonClass } from "@/components/ui/button";
 import { SITE } from "@/lib/site";
 import { isBlackcatConfigured } from "@/lib/payment/blackcat";
 import { CheckoutSteps } from "@/app/(storefront)/checkout/_components/checkout-steps";
+import {
+  BookOpen,
+  CircleCheck,
+  Clock,
+  CreditCard,
+  Inbox,
+  Landmark,
+  Mail,
+  MapPin,
+  MessageCircle,
+  MonitorPlay,
+  type LucideIcon,
+} from "lucide-react";
+import { IconText, ICON_STROKE } from "@/components/ui/icon-text";
+
+const NOTE_ICON: Record<string, LucideIcon> = {
+  credit: CreditCard,
+  atm: Landmark,
+  manual: MessageCircle,
+};
 
 export const metadata: Metadata = {
   title: "報名完成",
@@ -30,15 +50,15 @@ function paymentNote(method: string, creditEnabled: boolean) {
       ? {
           title: "關於信用卡付款",
           body:
-            "刷卡結果會由黑貓 PAY 通知我們，通常幾秒內就會完成。" +
+            "黑貓 PAY 的刷卡結果通常幾秒內就到。" +
             // 🔴 2026-10-17：這裡只講開通。發票不自動開立，也不承諾會寄 ——
             //    站上唯一的開票路徑是後台人工按，寫進來就是沒人保證的承諾。
-            "課程會自動開通，通知信會寄到你填的 Email。" +
-            "如果過了十分鐘還沒收到，用 LINE 跟我們說一聲。",
+            "課程自動開通，通知信寄到你填的 Email。" +
+            "十分鐘還沒收到，用 LINE 說一聲。",
         }
       : {
           title: "關於信用卡付款",
-          body: "線上刷卡還在開通中，所以我們會用 LINE 跟你確認付款方式。現在還沒有跟你收款，請放心。",
+          body: "線上刷卡還在開通中，我們會用 LINE 確認付款方式。現在還沒有收款。",
         };
   }
   return PAYMENT_NOTE[method];
@@ -47,11 +67,11 @@ function paymentNote(method: string, creditEnabled: boolean) {
 const PAYMENT_NOTE: Record<string, { title: string; body: string }> = {
   atm: {
     title: "關於 ATM 匯款",
-    body: `匯款帳號請用 LINE 跟我們拿，戶名是${SITE.company}。匯款後我們對帳完成就會開通，大約 1 個工作天。`,
+    body: `帳號用 LINE 跟我們拿，戶名：${SITE.company}。對帳完成就開通，約 1 個工作天。`,
   },
   manual: {
     title: "我們會用 LINE 跟你聯絡",
-    body: "這筆訂單是請我們代訂的。我們會用 LINE 跟你確認課程與付款方式；等不及的話也可以直接用 LINE 找我們。",
+    body: "這筆是代訂，我們會用 LINE 確認課程與付款方式；也可以直接 LINE 我們。",
   },
 };
 
@@ -67,7 +87,9 @@ export default async function CheckoutSuccessPage({
 }) {
   const sp = await searchParams;
   const orderNo = one(sp.order);
-  const note = paymentNote(one(sp.pay), isBlackcatConfigured()) ?? null;
+  const pay = one(sp.pay);
+  const note = paymentNote(pay, isBlackcatConfigured()) ?? null;
+  const NoteIcon = NOTE_ICON[pay];
 
   return (
     <div>
@@ -78,9 +100,9 @@ export default async function CheckoutSuccessPage({
           <div className="text-center">
             <div
               aria-hidden
-              className="mx-auto flex h-[76px] w-[76px] items-center justify-center rounded-pill bg-cream-100 text-[32px] text-caramel-ink md:h-[96px] md:w-[96px] md:text-[40px]"
+              className="mx-auto flex h-[76px] w-[76px] items-center justify-center rounded-pill bg-cream-100 text-caramel-ink md:h-[96px] md:w-[96px]"
             >
-              ✓
+              <CircleCheck strokeWidth={1.6} className="h-[40px] w-[40px] md:h-[52px] md:w-[52px]" />
             </div>
 
             <h1 className="t-h1 mt-[18px] text-brown-900 md:mt-[24px]">
@@ -88,7 +110,7 @@ export default async function CheckoutSuccessPage({
             </h1>
 
             <p className="t-body-lg mx-auto mt-[12px] max-w-[640px] text-brown-700 md:mt-[14px]">
-              {"我們收到你的訂單了。開通通知會寄到你剛剛填的 Email，也會有專人跟你聯絡，不用擔心漏掉。"}
+              {"訂單收到了。開通通知會寄到你的 Email，也會有專人聯絡你。"}
             </p>
 
             {orderNo ? (
@@ -98,19 +120,22 @@ export default async function CheckoutSuccessPage({
                   {orderNo}
                 </p>
                 <p className="mt-[6px] text-[16px] text-brown-300">
-                  用 LINE 問我們的時候，把這一組號碼貼給我們就可以了
+                  問 LINE 時貼這組號碼就好
                 </p>
               </div>
             ) : (
               <p className="t-body mx-auto mt-[18px] max-w-[640px] text-brown-500">
-                {"如果要查詢這筆報名，用 LINE 問我們，報一下你的姓名與手機號碼就可以了。"}
+                {"查詢這筆報名：LINE 告訴我們姓名與手機就好。"}
               </p>
             )}
           </div>
 
           {note && (
             <div className="mt-[32px] rounded-card border border-sand-500 px-[24px] py-[24px] md:mt-[44px] md:px-[30px] md:py-[28px]">
-              <h2 className="font-serif text-[20px] font-semibold text-brown-900 md:text-[22px]">
+              <h2 className="flex items-center gap-[10px] font-serif text-[20px] font-semibold text-brown-900 md:text-[22px]">
+                {NoteIcon && (
+                  <NoteIcon aria-hidden="true" strokeWidth={ICON_STROKE} className="h-[22px] w-[22px] shrink-0 text-caramel-dk" />
+                )}
                 {note.title}
               </h2>
               <p className="t-body-sm mt-[10px] text-brown-500">{note.body}</p>
@@ -131,21 +156,24 @@ export default async function CheckoutSuccessPage({
           >
             <h2
               id="account-ready"
-              className="font-serif text-[20px] font-semibold text-brown-900 md:text-[22px]"
+              className="flex items-center gap-[10px] font-serif text-[20px] font-semibold text-brown-900 md:text-[22px]"
             >
+              <Mail aria-hidden="true" strokeWidth={ICON_STROKE} className="h-[22px] w-[22px] shrink-0 text-caramel-dk" />
               我們幫你開好帳號了
             </h2>
             <p className="mt-[12px] text-[16.5px] leading-[1.9] text-brown-700 md:text-[17.5px]">
-              我們已經寄了一封
+              已寄一封
               <strong className="font-semibold text-brown-900">「請設定密碼」</strong>
-              的信到你剛剛填的信箱。打開信、按裡面那顆按鈕設定一組密碼，
-              之後就能登入看你買的課程和訂單。
+              信到你的信箱。按信裡的按鈕設好密碼，就能登入看課程與訂單。
             </p>
-            <p className="mt-[10px] text-[16px] leading-[1.9] text-brown-500">
-              ・沒收到的話，先看看「垃圾郵件」那一夾，信可能要等一兩分鐘。
-              <br />
-              ・不想現在設定也沒關係，課程開通之後我們會再寄一次通知。
-            </p>
+            <ul className="mt-[10px] flex list-none flex-col gap-[6px] text-[16px] leading-[1.7] text-brown-500">
+              <li>
+                <IconText icon={Inbox}>沒收到？先看垃圾郵件，信可能晚一兩分鐘</IconText>
+              </li>
+              <li>
+                <IconText icon={Clock}>不急著設，開通後會再寄通知</IconText>
+              </li>
+            </ul>
           </section>
 
           <section
@@ -160,13 +188,22 @@ export default async function CheckoutSuccessPage({
             </h2>
             <ol className="mt-[16px] flex flex-col gap-[12px] text-[16.5px] leading-[1.9] text-brown-700 md:mt-[18px] md:gap-[14px] md:text-[17.5px]">
               <li>
-                一、線上課程：我們開通之後，你登入就能在「我的學習」裡看，想看幾次都可以。
+                <IconText icon={MonitorPlay} iconClassName="h-[20px] w-[20px]">
+                  <strong className="font-medium text-brown-900">線上課程</strong>
+                  ：開通後在「我的學習」看，可重複看
+                </IconText>
               </li>
               <li>
-                二、實體工作坊：開課前三天我們會再提醒你一次，當天空手來就好。
+                <IconText icon={MapPin} iconClassName="h-[20px] w-[20px]">
+                  <strong className="font-medium text-brown-900">實體工作坊</strong>
+                  ：開課前三天提醒你，當天空手來
+                </IconText>
               </li>
               <li>
-                三、有紙本課本的話，會寄到你填的地址；沒收到通知信請先看看垃圾信件匣。
+                <IconText icon={BookOpen} iconClassName="h-[20px] w-[20px]">
+                  <strong className="font-medium text-brown-900">紙本課本</strong>
+                  ：寄到你填的地址
+                </IconText>
               </li>
             </ol>
           </section>
@@ -191,7 +228,7 @@ export default async function CheckoutSuccessPage({
           </div>
 
           <div className="mt-[24px] text-center">
-            <p className="t-caption text-brown-500">有問題隨時用 LINE 說，有真人回訊息。</p>
+            <p className="t-caption text-brown-500">有問題隨時 LINE，真人回覆</p>
             <a
               href={SITE.lineHref}
               target="_blank"
@@ -199,9 +236,10 @@ export default async function CheckoutSuccessPage({
               className={buttonClass({
                 variant: "dark",
                 size: "lg",
-                className: "mt-[12px] w-full sm:w-auto",
+                className: "mt-[12px] w-full gap-[8px] sm:w-auto",
               })}
             >
+              <MessageCircle aria-hidden="true" strokeWidth={ICON_STROKE} className="h-[20px] w-[20px]" />
               加我們的 LINE
               <span className="sr-only">（會開啟 LINE）</span>
             </a>

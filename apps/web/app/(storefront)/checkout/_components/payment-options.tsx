@@ -2,6 +2,14 @@
 
 import { buttonClass } from "@/components/ui/button";
 import { SITE } from "@/lib/site";
+import { CreditCard, Landmark, MessageCircle, type LucideIcon } from "lucide-react";
+import { ICON_STROKE } from "@/components/ui/icon-text";
+
+const OPTION_ICON: Record<PaymentMethod, LucideIcon> = {
+  credit: CreditCard,
+  atm: Landmark,
+  manual: MessageCircle,
+};
 
 export type PaymentMethod = "credit" | "atm" | "manual";
 
@@ -27,7 +35,7 @@ const OPTIONS: Option[] = [
   {
     value: "atm",
     label: "ATM 匯款",
-    desc: "下單後會給你帳號，我們對到帳就開通（約 1 個工作天）",
+    desc: "對到帳就開通（約 1 個工作天）",
   },
   {
     value: "manual",
@@ -91,7 +99,17 @@ export function PaymentOptions({
                     }`}
                   />
                   <span className="min-w-0">
-                    <span className="block text-[17.5px] text-brown-900 md:text-[18.5px]">
+                    <span className="flex items-center gap-[8px] text-[17.5px] text-brown-900 md:text-[18.5px]">
+                      {(() => {
+                        const Icon = OPTION_ICON[opt.value];
+                        return (
+                          <Icon
+                            aria-hidden="true"
+                            strokeWidth={ICON_STROKE}
+                            className="h-[20px] w-[20px] shrink-0 text-caramel-dk"
+                          />
+                        );
+                      })()}
                       {opt.label}
                     </span>
                     <span className="mt-[4px] block text-[16px] leading-[1.8] text-brown-500">
@@ -110,8 +128,8 @@ export function PaymentOptions({
                 <PanelBox>
                   <p>
                     {creditEnabled
-                      ? "按下送出之後會轉到黑貓 PAY 的刷卡頁（統一客樂得的付款平台），在那裡輸入卡號完成付款。刷卡成功就會自動開通課程。"
-                      : "線上刷卡還在開通中。你按下送出之後我們會先幫你保留名額，並用 LINE 跟你確認付款方式，這時候還不會扣款。"}
+                      ? "在黑貓 PAY（統一客樂得）刷卡頁輸入卡號，刷卡成功自動開通。"
+                      : "送出後先幫你保留名額，再用 LINE 確認付款方式，現在不會扣款。"}
                   </p>
                 </PanelBox>
               )}
@@ -121,15 +139,14 @@ export function PaymentOptions({
                   <p>
                     戶名：{SITE.company}
                     <br />
-                    銀行帳號請用 LINE 問我們，我們會直接告訴你，也可以幫你記下來。
+                    銀行帳號用 LINE 問我們。
                   </p>
-                  <p className="mt-[8px]">匯款後我們對帳完成就會開通。</p>
+                  <p className="mt-[8px]">匯款對帳完成就開通。</p>
                 </PanelBox>
               )}
 
               {selected && opt.value === "manual" && (
                 <PanelBox>
-                  <p>用 LINE 問我們，我們幫你處理。</p>
                   <a
                     href={SITE.lineHref}
                     target="_blank"
@@ -137,9 +154,10 @@ export function PaymentOptions({
                     className={buttonClass({
                       variant: "dark",
                       fullWidth: true,
-                      className: "mt-[14px]",
+                      className: "gap-[8px]",
                     })}
                   >
+                    <MessageCircle aria-hidden="true" strokeWidth={ICON_STROKE} className="h-[20px] w-[20px]" />
                     加我們的 LINE
                     <span className="sr-only">（會開啟 LINE）</span>
                   </a>

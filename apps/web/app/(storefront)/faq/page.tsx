@@ -6,6 +6,15 @@ import { buttonClass } from "@/components/ui/button";
 import { MobileActionBar } from "@/components/mobile-action-bar";
 import { PageHero } from "@/app/_components/page-hero";
 import { CallBand } from "@/app/_components/call-band";
+import { IconText } from "@/components/ui/icon-text";
+import { BookOpen, Clock, CreditCard, MessageCircle, Users, type LucideIcon } from "lucide-react";
+
+/** 分組標題的圖示，依 GROUPS 的 title 對應 */
+const GROUP_ICONS: Record<string, LucideIcon> = {
+  課程相關: BookOpen,
+  付款與寄送: CreditCard,
+  工作坊: Users,
+};
 
 export const metadata: Metadata = {
   title: "常見問題",
@@ -81,7 +90,7 @@ export default function FaqPage() {
       <PageHero
         eyebrow="FAQ"
         title="常見問題"
-        lead="這裡整理了大家最常問的幾題。看完還是不確定的話，直接用 LINE 問我們，不用客氣。"
+        lead="看完還不確定，直接用 LINE 問我們。"
       />
 
       {/* 找不到答案就用 LINE 問 */}
@@ -90,7 +99,7 @@ export default function FaqPage() {
           <div className="rounded-card border border-sand-300 bg-cream-100 px-[22px] py-[24px] text-center md:px-[40px] md:py-[34px]">
             <h2 className="t-h3">找不到答案，就用 LINE 問</h2>
             <p className="t-body-sm mx-auto mt-[10px] max-w-[540px] text-pretty text-brown-500">
-              週一到週五 10:00–18:00 有真人回訊息。不用先想好怎麼問，想到什麼就問什麼。
+              <IconText icon={Clock} label="真人回覆時間">週一到週五 10:00–18:00 真人回覆</IconText>
             </p>
             <a
               href={SITE.lineHref}
@@ -100,9 +109,10 @@ export default function FaqPage() {
                 variant: "outline",
                 size: "lg",
                 fullWidth: true,
-                className: "mt-[18px] md:mt-[22px] md:w-auto",
+                className: "mt-[18px] gap-[8px] md:mt-[22px] md:w-auto",
               })}
             >
+              <MessageCircle aria-hidden="true" strokeWidth={1.8} className="h-[20px] w-[20px] text-caramel-dk" />
               用 LINE 問我們
               <span className="sr-only">（會開啟 LINE）</span>
             </a>
@@ -115,7 +125,15 @@ export default function FaqPage() {
         <div className="mx-auto max-w-[860px] px-[20px] py-[34px] md:px-[40px] md:py-[64px]">
           {SECTIONS.map((section) => (
             <div key={section.title} className="mt-[28px] first:mt-0 md:mt-[40px]">
-              <h2 className="t-h3">{section.title}</h2>
+              <h2 className="t-h3 flex items-center gap-[10px]">
+                {(() => {
+                  const Icon = GROUP_ICONS[section.title];
+                  return Icon ? (
+                    <Icon aria-hidden="true" strokeWidth={1.8} className="h-[22px] w-[22px] shrink-0 text-caramel-dk" />
+                  ) : null;
+                })()}
+                {section.title}
+              </h2>
               <div className="mt-[12px] rounded-card border border-sand-300 bg-white px-[20px] md:mt-[16px] md:px-[26px]">
                 <Accordion items={section.items} className="-mt-px -mb-px" />
               </div>

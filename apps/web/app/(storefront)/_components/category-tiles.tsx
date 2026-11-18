@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MonitorPlay, Users, Video } from "lucide-react";
 import {
   CATEGORY_HREF,
   CATEGORY_LABEL,
@@ -19,41 +20,16 @@ const SUB: Record<CourseCategory, string> = {
   onsite: "面對面小班",
 };
 
+/** 三類的圖示（lucide），跟頁首抽屜、首頁分頁同一組 */
+const ICONS: Record<CourseCategory, typeof MonitorPlay> = {
+  recorded: MonitorPlay,
+  live: Video,
+  onsite: Users,
+};
+
 function Icon({ cat }: { cat: CourseCategory }) {
-  const common = {
-    viewBox: "0 0 32 32",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.8,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    className: "h-[30px] w-[30px]",
-    "aria-hidden": true,
-  };
-  if (cat === "recorded")
-    return (
-      <svg {...common}>
-        <rect x="4" y="6" width="24" height="17" rx="3" />
-        <path d="M14 11.5v6l5-3-5-3Z" />
-        <path d="M11 27h10" />
-      </svg>
-    );
-  if (cat === "live")
-    return (
-      <svg {...common}>
-        <rect x="3.5" y="9" width="17" height="14" rx="3" />
-        <path d="M20.5 14l7-4v12l-7-4" />
-        <circle cx="9" cy="14" r="1.6" fill="currentColor" stroke="none" />
-      </svg>
-    );
-  return (
-    <svg {...common}>
-      <circle cx="11" cy="10" r="3.5" />
-      <circle cx="21.5" cy="11" r="3" />
-      <path d="M4.5 25c.6-4.6 3.4-7 6.5-7s5.9 2.4 6.5 7" />
-      <path d="M17.5 19.2c1.1-.8 2.4-1.2 4-1.2 2.8 0 5.1 2.1 5.6 6" />
-    </svg>
-  );
+  const C = ICONS[cat];
+  return <C aria-hidden="true" strokeWidth={1.8} className="h-[28px] w-[28px]" />;
 }
 
 export function CategoryTiles({

@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { Lesson } from "@/lib/content";
 import { loadYouTubeApi, type YTPlayer } from "@/components/account/youtube-api";
 import { formatDuration } from "./format";
+import { ChevronDown, Clock, Play, X } from "lucide-react";
 
 const INITIAL_COUNT = 4;
 
@@ -60,7 +61,18 @@ export function LessonList({ lessons }: { lessons: Lesson[] }) {
                         aria-expanded={isPlaying}
                         className="-my-[7px] inline-flex min-h-[44px] items-center rounded-pill bg-caramel-dk px-[14px] py-[4px] text-[16px] leading-[1.4] text-white transition-opacity hover:opacity-90"
                       >
-                        {isPlaying ? "收起試看" : "免費試看 ▶"}
+                        {isPlaying ? (
+                          <>
+                            <X aria-hidden="true" strokeWidth={2} className="mr-[4px] h-[16px] w-[16px]" />
+                            收起
+                          </>
+                        ) : (
+                          <>
+                            <Play aria-hidden="true" strokeWidth={2} className="mr-[4px] h-[16px] w-[16px] fill-current" />
+                            試看
+                          </>
+                        )}
+                        <span className="sr-only">{isPlaying ? "試看影片" : "：免費試看這一堂"}</span>
                       </button>
                     ) : lesson.free_preview ? (
                       <span className="rounded-pill bg-caramel-dk px-[12px] py-[4px] text-[16px] leading-[1.4] text-white">
@@ -69,7 +81,9 @@ export function LessonList({ lessons }: { lessons: Lesson[] }) {
                     ) : null}
                   </span>
                 </div>
-                <span className="shrink-0 text-[16px] text-brown-500">
+                <span className="inline-flex shrink-0 items-center gap-[4px] text-[16px] text-brown-500">
+                  <Clock aria-hidden="true" strokeWidth={1.8} className="h-[16px] w-[16px]" />
+                  <span className="sr-only">長度</span>
                   {formatDuration(lesson.duration_sec)}
                 </span>
               </div>
@@ -94,15 +108,13 @@ export function LessonList({ lessons }: { lessons: Lesson[] }) {
             className="inline-flex min-h-[56px] items-center gap-[8px] px-[12px] text-[17px] text-brown-900 transition-colors duration-200 hover:text-caramel-dk"
           >
             <span className="border-b border-caramel pb-[4px]">
-              {open ? "收合單元列表" : `展開其餘 ${rest} 堂`}
+              {open ? "收合" : `再看 ${rest} 堂`}
             </span>
-            <span
-              aria-hidden
-              className="text-caramel-ink transition-transform duration-200"
-              style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
-            >
-              ▾
-            </span>
+            <ChevronDown
+              aria-hidden="true"
+              strokeWidth={2}
+              className={`h-[20px] w-[20px] text-caramel-ink transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+            />
           </button>
         </div>
       ) : null}

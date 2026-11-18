@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/ui/button";
 import { formatPrice } from "@/lib/site";
+import { IconText } from "@/components/ui/icon-text";
+import { CalendarDays, CreditCard } from "lucide-react";
 import { getMyOrders, type MyOrder } from "../queries";
 import {
   Card,
@@ -39,7 +41,7 @@ export default async function AccountOrdersPage() {
     <>
       <PageHeading
         title="我的訂單"
-        lead="你在快樂手下過的訂單都在這裡。用 LINE 問我們的時候，把訂單編號貼給我們就可以了。"
+        lead="問 LINE 時，貼訂單編號給我們就好。"
       />
 
       {error ? (
@@ -57,8 +59,7 @@ export default async function AccountOrdersPage() {
           }
         >
           <p>
-            如果你買過課卻看不到訂單，可能是登入的信箱跟下單時填的不一樣。
-            用 LINE 跟我們說一聲，報你的名字就好。
+            買了卻看不到？多半是登入信箱跟下單時不同，LINE 報名字我們幫你查。
           </p>
         </EmptyState>
       ) : (
@@ -106,8 +107,9 @@ function OrderRow({ order }: { order: MyOrder }) {
           <p className="font-serif text-[20px] leading-tight font-semibold tracking-[0.04em] break-all text-brown-900 md:text-[22px]">
             {order.orderNo}
           </p>
-          <p className="t-body-sm mt-[4px] text-brown-500">
-            {formatOrderDate(order.createdAt)}・{paymentLabel(order.paymentMethod)}
+          <p className="t-body-sm mt-[4px] flex flex-wrap gap-x-[14px] gap-y-[2px] text-brown-500">
+            <IconText icon={CalendarDays} label="下單日期">{formatOrderDate(order.createdAt)}</IconText>
+            <IconText icon={CreditCard} label="付款方式">{paymentLabel(order.paymentMethod)}</IconText>
           </p>
         </div>
         <StatusChip tone={status.tone}>{status.label}</StatusChip>

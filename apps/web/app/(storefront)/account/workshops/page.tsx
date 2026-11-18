@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/ui/button";
+import { ICON_CLASS, ICON_STROKE } from "@/components/ui/icon-text";
+import { CalendarDays, MapPin, ReceiptText, Shirt, Video, type LucideIcon } from "lucide-react";
 import { getMyWorkshops, type MyWorkshop } from "../queries";
 import {
   Card,
@@ -37,7 +39,7 @@ export default async function AccountWorkshopsPage() {
     <>
       <PageHeading
         title="我報名的工作坊"
-        lead="場次時間與地點都在這裡。開課前三天我們會再用 Email 提醒你一次。"
+        lead="開課前三天會再寄 Email 提醒你。"
       />
 
       {error ? (
@@ -54,10 +56,7 @@ export default async function AccountWorkshopsPage() {
             </Link>
           }
         >
-          <p>
-            工作坊是跟老師面對面練一次，手把手調整姿勢。
-            人數不多，通常開放報名後很快就滿。
-          </p>
+          <p>小班制，通常很快就滿。</p>
         </EmptyState>
       ) : (
         <div className="flex flex-col gap-[28px] md:gap-[36px]">
@@ -91,7 +90,7 @@ export default async function AccountWorkshopsPage() {
 
       <div className="mt-[28px]">
         <p className="t-body-sm text-pretty text-brown-500">
-          需要改期或有其他狀況嗎？用 LINE 跟我們說一聲就好。
+          要改期？用 LINE 跟我們說。
         </p>
         <LineButton className="mt-[12px]" />
       </div>
@@ -125,8 +124,8 @@ function WorkshopCard({
       </div>
 
       <dl className="mt-[12px] flex flex-col gap-[8px]">
-        <div className="flex flex-wrap gap-x-[10px]">
-          <dt className="t-body-sm w-[56px] shrink-0 text-brown-500">時間</dt>
+        <div className="flex gap-x-[10px]">
+          <MetaDt icon={CalendarDays} label="時間" />
           <dd className="t-body min-w-0 text-brown-900">
             {formatSessionTime(workshop.startsAt)}
           </dd>
@@ -137,8 +136,8 @@ function WorkshopCard({
           關於連結的說明。
         */}
         {workshop.format === "online" ? (
-          <div className="flex flex-wrap gap-x-[10px]">
-            <dt className="t-body-sm w-[56px] shrink-0 text-brown-500">方式</dt>
+          <div className="flex gap-x-[10px]">
+            <MetaDt icon={Video} label="上課方式" />
             <dd className="t-body min-w-0 text-brown-900">
               線上（視訊）
               <span className="block text-[17px] text-brown-500">{ONLINE_LINK_NOTE}</span>
@@ -146,8 +145,8 @@ function WorkshopCard({
           </div>
         ) : (
           workshop.location && (
-            <div className="flex flex-wrap gap-x-[10px]">
-              <dt className="t-body-sm w-[56px] shrink-0 text-brown-500">地點</dt>
+            <div className="flex gap-x-[10px]">
+              <MetaDt icon={MapPin} label="地點" />
               <dd className="t-body min-w-0 text-brown-900">
                 {placeText(workshop.format, workshop.location)}
                 {workshop.address && (
@@ -162,12 +161,12 @@ function WorkshopCard({
             </div>
           )
         )}
-        <div className="flex flex-wrap gap-x-[10px]">
-          <dt className="t-body-sm w-[56px] shrink-0 text-brown-500">訂單</dt>
+        <div className="flex gap-x-[10px]">
+          <MetaDt icon={ReceiptText} label="訂單" />
           <dd className="t-body min-w-0">
             <Link
               href={`/account/orders/${workshop.orderId}`}
-              className="break-all text-caramel-dk hover:underline"
+              className="-my-[10px] inline-block break-all py-[10px] text-caramel-dk hover:underline"
             >
               {workshop.orderNo}
             </Link>
@@ -177,16 +176,27 @@ function WorkshopCard({
 
       {unpaid && !past && (
         <p className="t-body-sm mt-[12px] rounded-card bg-cream-100 px-[16px] py-[12px] text-brown-700">
-          我們還沒收到這一筆的款項。匯款之後對帳完成就會確認你的位子，
-          有問題用 LINE 問我們就好。
+          還沒收到款項。匯款對帳完成就會確認你的位子。
         </p>
       )}
 
-      {!past && !cancelled && (
-        <p className="t-body-sm mt-[12px] text-brown-500">
-          當天空手來就好，穿寬鬆一點的衣服，提前十分鐘到。
+      {/* 線上場次不印「空手來、提前到」—— 那是實體課的提醒 */}
+      {!past && !cancelled && workshop.format !== "online" && (
+        <p className="t-body-sm mt-[12px] flex items-start gap-[8px] text-brown-500">
+          <Shirt aria-hidden="true" strokeWidth={ICON_STROKE} className={`mt-[0.22em] ${ICON_CLASS}`} />
+          <span>空手來・穿寬鬆・提前 10 分鐘到</span>
         </p>
       )}
     </Card>
+  );
+}
+
+/** 欄位名改成圖示，文字留給螢幕報讀。 */
+function MetaDt({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+  return (
+    <dt className="shrink-0 pt-[0.3em]">
+      <Icon aria-hidden="true" strokeWidth={ICON_STROKE} className={`h-[20px] w-[20px] ${ICON_CLASS}`} />
+      <span className="sr-only">{label}</span>
+    </dt>
   );
 }

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Field } from "@/components/ui/field";
 import { buttonClass } from "@/components/ui/button";
 import { SITE } from "@/lib/site";
+import { MessageCircle } from "lucide-react";
 
 /**
  * 設定新密碼。
@@ -156,8 +157,9 @@ export function ResetForm() {
           href={SITE.lineHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-caramel-dk hover:underline"
+          className="-my-[11px] inline-flex items-center gap-[4px] py-[11px] align-middle text-caramel-dk hover:underline"
         >
+          <MessageCircle aria-hidden="true" strokeWidth={1.8} className="h-[18px] w-[18px]" />
           用 LINE 問我們
           <span className="sr-only">（會開啟 LINE）</span>
         </a>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SITE } from "@/lib/site";
+import { Download } from "lucide-react";
 
 /**
  * 影片下方的課程內容：文字說明、插圖、可下載的講義。
@@ -186,7 +187,7 @@ export function LessonContent({ lessonId }: { lessonId: string }) {
             ))}
           </ul>
           <p className="t-caption mt-[12px] text-brown-500">
-            下載連結有時效，過幾分鐘再點就要重新整理頁面。
+            連結有時效，失效就重新整理頁面。
           </p>
         </section>
       )}
@@ -195,18 +196,5 @@ export function LessonContent({ lessonId }: { lessonId: string }) {
 }
 
 function DownloadIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-    </svg>
-  );
+  return <Download aria-hidden="true" strokeWidth={1.8} className={className} />;
 }

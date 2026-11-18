@@ -4,6 +4,8 @@ import { SITE, formatPrice } from "@/lib/site";
 import { timeRange, twDate, type WorkshopRow } from "@/lib/data";
 import { AddSessionButton } from "./add-session-button";
 import { formatTag } from "@/lib/session-format";
+import { Clock, MapPin, Info } from "lucide-react";
+import { FormatBadge, ICON_CLASS, ICON_STROKE } from "@/components/ui/icon-text";
 
 /**
  * 工作坊場次列。
@@ -83,11 +85,11 @@ export function SessionRow({
 
   // 地點與時間。有標題時排在標題下方；沒有標題（單場詳情頁）時直接接在日期方塊旁邊
   const locationLine = (
-    <p
+    <div
       className={
         showTitle
-          ? `min-w-0 text-[17px] leading-[1.8] text-brown-500 md:col-start-2 md:row-start-2 md:mt-[8px] ${compact ? "mt-[8px] max-md:w-full" : "mt-[12px]"}`
-          : "min-w-0 text-[17px] leading-[1.8] text-brown-500 md:col-start-2 md:row-span-2 md:row-start-1"
+          ? `flex min-w-0 flex-col gap-[2px] text-[17px] leading-[1.7] text-brown-500 md:col-start-2 md:row-start-2 md:mt-[8px] ${compact ? "mt-[8px] max-md:w-full" : "mt-[12px]"}`
+          : "flex min-w-0 flex-col gap-[2px] text-[17px] leading-[1.7] text-brown-500 md:col-start-2 md:row-span-2 md:row-start-1"
       }
     >
       {/*
@@ -95,32 +97,34 @@ export function SessionRow({
         留空的話以前會印成「・09:00–17:00」，前面少一截。
         混合：地點照印，標籤說明也能線上參加。
       */}
-      {tag && (
-        <span className="mr-[8px] inline-block rounded-full bg-brown-900 px-[10px] align-[2px] text-[14px] leading-[1.7] font-medium text-white">
-          {tag}
+      {/* 2026-11-18 減字：時間、地點、梯次說明各一行，前面用圖示代替文字 */}
+      <span className="flex flex-wrap items-center gap-x-[8px]">
+        {tag && <FormatBadge format={session.format} />}
+        <span className="inline-flex items-start gap-[6px]">
+          <Clock aria-hidden="true" strokeWidth={ICON_STROKE} className={`mt-[0.3em] ${ICON_CLASS}`} />
+          <span><span className="sr-only">時間：</span>{timeRange(session.starts_at, session.ends_at)}</span>
+        </span>
+      </span>
+      {session.format !== "online" && session.location?.trim() && (
+        <span className="flex items-start gap-[6px]">
+          <MapPin aria-hidden="true" strokeWidth={ICON_STROKE} className={`mt-[0.3em] ${ICON_CLASS}`} />
+          <span><span className="sr-only">地點：</span>{session.location}</span>
         </span>
       )}
-      {session.format === "online"
-        ? timeRange(session.starts_at, session.ends_at)
-        : `${session.location}・${timeRange(session.starts_at, session.ends_at)}`}
       {session.sessionSummary?.trim() && (
-        <>
-          <br />
-          <span className="text-brown-500">{session.sessionSummary}</span>
-        </>
+        <span className="block text-brown-500">{session.sessionSummary}</span>
       )}
       {/*
         梯次補充說明。後台一直讓人填、提示也寫著「例如『直播連結於開課前發送』」，
-        但以前前台沒有任何地方顯示它 —— 又一個存了也看不到的欄位。
         只在單場詳情頁（showTitle=false）顯示：列表與首頁要保持一列一行。
       */}
       {!showTitle && session.sessionNotes?.trim() && (
-        <>
-          <br />
-          <span className="text-brown-500">{session.sessionNotes}</span>
-        </>
+        <span className="flex items-start gap-[6px] text-brown-500">
+          <Info aria-hidden="true" strokeWidth={ICON_STROKE} className={`mt-[0.3em] ${ICON_CLASS}`} />
+          <span>{session.sessionNotes}</span>
+        </span>
       )}
-    </p>
+    </div>
   );
 
   return (

@@ -32,6 +32,20 @@ import {
 import { NoSessions } from "../_components/no-sessions";
 import { hasOnline, ONLINE_LINK_NOTE, placeText } from "@/lib/session-format";
 import { CATEGORY_LABEL, categoriesOf } from "@/lib/course-category";
+import {
+  BookOpen,
+  CalendarDays,
+  ClipboardCheck,
+  Link2,
+  MapPin,
+  MessageCircle,
+  Check,
+  UserCheck,
+  Video,
+  Wallet,
+} from "lucide-react";
+import { ICON_CLASS, ICON_STROKE } from "@/components/ui/icon-text";
+import { ReadMore } from "@/components/ui/read-more";
 
 type PageProps = { params: Promise<{ slug: string }> };
 
@@ -44,11 +58,11 @@ export const dynamicParams = true;
  * 不該逼客戶每開一場就重打一次。
  */
 const DEFAULT_NOTES = [
-  "工具跟講義我們都準備好了，你空手來就行。",
+  "工具講義都備好，空手來就行。",
   "開課前七天跟我們說一聲，可以改期一次。",
-  "額滿了還是可以用 LINE 登記候補，有人取消我們會通知你。",
-  "膝蓋、腰不舒服都可以坐著做，現場有助教會陪你。",
-  "其他不確定的事，用 LINE 問我們，我們慢慢跟你講。",
+  "額滿可用 LINE 登記候補，有人取消會通知你。",
+  "膝蓋、腰不舒服可以坐著做，現場有助教。",
+  "其他問題，用 LINE 問我們。",
 ];
 
 /**
@@ -60,11 +74,11 @@ const DEFAULT_NOTES = [
  */
 const ONLINE_DEFAULT_NOTES = [
   ONLINE_LINK_NOTE,
-  "用電腦或平板上課比較好，手機螢幕小，比較難看清楚老師的手勢。",
-  "找一個安靜、可以把手攤開的位置。膝蓋、腰不舒服都可以坐著做。",
+  "建議用電腦或平板，手機較難看清老師的手勢。",
+  "找個安靜、能把手攤開的位置，可以坐著做。",
   "開課前七天跟我們說一聲，可以改期一次。",
-  "額滿了還是可以用 LINE 登記候補，有人取消我們會通知你。",
-  "其他不確定的事，用 LINE 問我們，我們慢慢跟你講。",
+  "額滿可用 LINE 登記候補，有人取消會通知你。",
+  "其他問題，用 LINE 問我們。",
 ];
 
 export async function generateStaticParams() {
@@ -192,17 +206,36 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               和一顆直接跳到場次的按鈕。 */}
           {firstSession && (
             <div className="mt-[8px] rounded-[18px] border border-sand-300 bg-cream-100 p-[16px] md:p-[22px]">
+              {/* 2026-11-18 減字：「上課時間／上課方式／費用」文字欄名換成圖示，欄名留給螢幕報讀 */}
               <dl className="grid gap-[8px] text-[17px] leading-[1.6]">
-                <div className="flex gap-[12px]">
-                  <dt className="w-[4.5em] shrink-0 text-brown-500">{sessions.length > 1 ? "最近一場" : "上課時間"}</dt>
-                  <dd className="text-brown-900">{firstSessionText}</dd>
+                <div className="flex items-start gap-[10px]">
+                  <dt>
+                    <CalendarDays aria-hidden="true" strokeWidth={ICON_STROKE} className={`mt-[0.2em] ${ICON_CLASS}`} />
+                    <span className="sr-only">{sessions.length > 1 ? "最近一場" : "上課時間"}</span>
+                  </dt>
+                  <dd className="text-brown-900">
+                    {firstSessionText}
+                    {sessions.length > 1 && (
+                      <span className="ml-[6px] text-[16px] text-brown-500">等 {sessions.length} 場</span>
+                    )}
+                  </dd>
                 </div>
-                <div className="flex gap-[12px]">
-                  <dt className="w-[4.5em] shrink-0 text-brown-500">上課方式</dt>
+                <div className="flex items-start gap-[10px]">
+                  <dt>
+                    {firstSession.format === "online" ? (
+                      <Video aria-hidden="true" strokeWidth={ICON_STROKE} className={`mt-[0.2em] ${ICON_CLASS}`} />
+                    ) : (
+                      <MapPin aria-hidden="true" strokeWidth={ICON_STROKE} className={`mt-[0.2em] ${ICON_CLASS}`} />
+                    )}
+                    <span className="sr-only">上課方式</span>
+                  </dt>
                   <dd className="text-brown-900">{placeText(firstSession.format, firstSession.location)}</dd>
                 </div>
-                <div className="flex gap-[12px]">
-                  <dt className="w-[4.5em] shrink-0 text-brown-500">費用</dt>
+                <div className="flex items-center gap-[10px]">
+                  <dt>
+                    <Wallet aria-hidden="true" strokeWidth={ICON_STROKE} className={ICON_CLASS} />
+                    <span className="sr-only">費用</span>
+                  </dt>
                   <dd className="font-serif text-[19px] font-semibold text-caramel-dk">{priceText}</dd>
                 </div>
               </dl>
@@ -210,11 +243,18 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                 href="#sessions"
                 className={buttonClass({ variant: "primary", className: "mt-[14px] w-full md:w-auto" })}
               >
-                {sessions.length > 1 ? `看 ${sessions.length} 個場次・報名` : "看場次・報名"}
+                {sessions.length > 1 ? `選場次報名（${sessions.length}）` : "看場次・報名"}
               </a>
             </div>
           )}
-          <p className="t-body mt-[4px] text-brown-700">{product.description}</p>
+          {/* 簡介來自後台，長的話手機先收起來 */}
+          {(product.description?.length ?? 0) > 110 ? (
+            <ReadMore className="mt-[4px]" collapsedHeight={128}>
+              <p className="t-body text-brown-700">{product.description}</p>
+            </ReadMore>
+          ) : (
+            <p className="t-body mt-[4px] text-brown-700">{product.description}</p>
+          )}
 
           {/* 後台「標題下方引言」。留空就不渲染，換行會保留。 */}
           <LeadText text={product.hero_lead} />
@@ -224,8 +264,9 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               {product.benefits.map((b) => (
                 <li
                   key={b}
-                  className="rounded-pill border border-sand-500 px-[20px] py-[10px] text-[16px] text-brown-700"
+                  className="inline-flex items-center gap-[6px] rounded-pill border border-sand-500 px-[16px] py-[8px] text-[16px] text-brown-700"
                 >
+                  <Check aria-hidden="true" strokeWidth={2} className="h-[16px] w-[16px] shrink-0 text-caramel-dk" />
                   {b}
                 </li>
               ))}
@@ -241,8 +282,20 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
       >
         <div className="mx-auto max-w-maxw">
           <h2 className="font-serif text-[24px] leading-[1.4] font-semibold text-brown-900 md:text-[32px]">場次與報名</h2>
-          <p className="mt-[8px] text-[17px] leading-[1.8] text-brown-700">
-            {"選一個你方便的日子，按「我要報名」就可以了。不方便線上付款的話，用 LINE 問我們，我們幫你代訂。"}
+          <p className="mt-[8px] flex items-center gap-[6px] text-[17px] leading-[1.8] text-brown-700">
+            <MessageCircle aria-hidden="true" strokeWidth={ICON_STROKE} className={ICON_CLASS} />
+            <span>
+              不方便線上付款？
+              <a
+                href={SITE.lineHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="-my-[7px] inline-block py-[11px] whitespace-nowrap text-brown-900 underline underline-offset-4 hover:text-caramel-dk"
+              >
+                LINE 幫你代訂
+                <span className="sr-only">（會開啟 LINE）</span>
+              </a>
+            </span>
           </p>
 
           <div className="mt-[20px]">
@@ -272,7 +325,8 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
       <div className="mx-auto flex w-full max-w-maxw flex-col gap-[40px] px-[20px] py-[40px] md:gap-[56px] md:px-[40px] md:py-[56px]">
         <CompareSection
           eyebrow="適合的對象"
-          title="這堂課適合誰、不適合誰"
+          title="適合誰、不適合誰"
+          icon={UserCheck}
           leftTitle="適合"
           leftItems={product.suitable_for}
           rightTitle="目前可能不適合"
@@ -291,6 +345,7 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
         <CompareSection
           eyebrow="課程內容"
           title="這堂課會上什麼"
+          icon={BookOpen}
           leftTitle="線上"
           leftItems={product.curriculum_online}
           rightTitle="實體練習"
@@ -328,9 +383,14 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                 附一張教室地圖，客人只會以為要親自到場。
               */
               <>
-                <h2 className="t-h3">上課方式</h2>
-                <p className="t-body mt-[10px] text-brown-500">線上上課（視訊）</p>
-                <p className="t-body mt-[4px] text-brown-500">{ONLINE_LINK_NOTE}</p>
+                <h2 className="t-h3 flex items-center gap-[8px]">
+                  <Video aria-hidden="true" strokeWidth={ICON_STROKE} className="h-[22px] w-[22px] shrink-0 text-caramel-dk" />
+                  線上上課（視訊）
+                </h2>
+                <p className="t-body mt-[10px] flex items-start gap-[8px] text-brown-500">
+                  <Link2 aria-hidden="true" strokeWidth={ICON_STROKE} className={`mt-[0.3em] ${ICON_CLASS}`} />
+                  <span>{ONLINE_LINK_NOTE}</span>
+                </p>
                 <div className="mt-[16px] flex flex-col flex-wrap gap-[10px] md:flex-row">
                   <a
                     href={SITE.lineHref}
@@ -341,6 +401,7 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                       className: "w-full shrink-0 whitespace-nowrap md:w-auto",
                     })}
                   >
+                    <MessageCircle aria-hidden="true" strokeWidth={ICON_STROKE} className="mr-[8px] h-[20px] w-[20px]" />
                     用 LINE 問我們
                     <span className="sr-only">（會開啟 LINE）</span>
                   </a>
@@ -348,9 +409,12 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
               </>
             ) : (
               <>
-            <h2 className="t-h3">上課地點</h2>
-            <p className="t-body mt-[10px] text-brown-500">{venueName}</p>
-            <p className="t-body mt-[4px] text-brown-500">{address}</p>
+            <h2 className="t-h3 flex items-center gap-[8px]">
+              <MapPin aria-hidden="true" strokeWidth={ICON_STROKE} className="h-[22px] w-[22px] shrink-0 text-caramel-dk" />
+              上課地點
+            </h2>
+            <p className="t-body mt-[10px] text-brown-900">{venueName}</p>
+            <p className="t-body mt-[2px] text-brown-500">{address}</p>
             <div className="mt-[16px] flex flex-col flex-wrap gap-[10px] md:flex-row">
               {/* 用原生 <a> 是為了帶 target/rel — LinkButton 對外部連結不會轉發這些屬性 */}
               <a
@@ -362,7 +426,8 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                   className: "w-full shrink-0 whitespace-nowrap md:w-auto",
                 })}
               >
-                看 Google 地圖
+                <MapPin aria-hidden="true" strokeWidth={ICON_STROKE} className="mr-[8px] h-[20px] w-[20px]" />
+                Google 地圖
                 <span className="sr-only">（另開新視窗）</span>
               </a>
               <a
@@ -374,14 +439,16 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                   className: "w-full shrink-0 whitespace-nowrap md:w-auto",
                 })}
               >
+                <MessageCircle aria-hidden="true" strokeWidth={ICON_STROKE} className="mr-[8px] h-[20px] w-[20px]" />
                 用 LINE 問路
                 <span className="sr-only">（會開啟 LINE）</span>
               </a>
             </div>
             {/* 有實體也有線上：地圖給實體場次用，另外講一句讓人知道可以選。 */}
             {anyOnline && (
-              <p className="t-body-sm mt-[14px] text-brown-500">
-                這門課有可以線上參加的場次，場次旁有標籤的就是。{ONLINE_LINK_NOTE}
+              <p className="t-body-sm mt-[14px] flex items-start gap-[8px] text-brown-500">
+                <Video aria-hidden="true" strokeWidth={ICON_STROKE} className={`mt-[0.3em] ${ICON_CLASS}`} />
+                <span>標「線上」的場次可視訊參加。{ONLINE_LINK_NOTE}</span>
               </p>
             )}
               </>
@@ -389,7 +456,10 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
           </div>
 
           <div className="md:flex-1">
-            <h2 className="t-h3">來之前先知道</h2>
+            <h2 className="t-h3 flex items-center gap-[8px]">
+              <ClipboardCheck aria-hidden="true" strokeWidth={ICON_STROKE} className="h-[22px] w-[22px] shrink-0 text-caramel-dk" />
+              來之前先知道
+            </h2>
             <ul className="mt-[10px] flex list-none flex-col gap-[10px]">
               {/*
                 後台「來之前先知道」欄位。原本這五條是寫死在這裡的字串陣列，
@@ -406,9 +476,7 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
                   key={t}
                   className="t-body-sm flex gap-[10px] text-brown-500"
                 >
-                  <span aria-hidden="true" className="text-caramel-ink">
-                    ・
-                  </span>
+                  <Check aria-hidden="true" strokeWidth={2} className="mt-[0.3em] h-[16px] w-[16px] shrink-0 text-caramel-dk" />
                   <span>{t}</span>
                 </li>
               ))}

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { SITE } from "@/lib/site";
+import { ArrowLeft, MessageCircle, RotateCw } from "lucide-react";
 
 /**
  * 會員中心共用的版面零件。
@@ -50,8 +51,9 @@ export function LoadError({ message }: { message: string }) {
       className="rounded-card border border-sand-400 bg-cream-100 px-[22px] py-[24px] md:px-[30px] md:py-[28px]"
     >
       <p className="t-body text-brown-900">{message}</p>
-      <p className="t-body-sm mt-[8px] text-brown-500">
-        這不是你操作錯誤。重新整理一次通常就好了；還是不行的話用 LINE 跟我們說一聲。
+      <p className="t-body-sm mt-[8px] flex items-start gap-[8px] text-brown-500">
+        <RotateCw aria-hidden="true" strokeWidth={1.8} className="mt-[0.22em] h-[18px] w-[18px] shrink-0 text-caramel-dk" />
+        <span>不是你操作錯誤，重新整理通常就好。</span>
       </p>
       <LineButton className="mt-[16px]" />
     </div>
@@ -91,8 +93,9 @@ export function LineButton({
       href={SITE.lineHref}
       target="_blank"
       rel="noopener noreferrer"
-      className={`inline-flex min-h-[56px] items-center justify-center rounded-pill border-2 border-sand-400 px-[32px] text-[18px] text-brown-900 transition-colors hover:bg-[#F5E7CE] ${className}`}
+      className={`inline-flex min-h-[56px] items-center justify-center gap-[8px] rounded-pill border-2 border-sand-400 px-[32px] text-[18px] text-brown-900 transition-colors hover:bg-[#F5E7CE] ${className}`}
     >
+      <MessageCircle aria-hidden="true" strokeWidth={1.8} className="h-[20px] w-[20px] shrink-0 text-caramel-dk" />
       {label}
       <span className="sr-only">（會開啟 LINE）</span>
     </a>
@@ -146,7 +149,7 @@ export function BackLink({ href, label }: { href: string; label: string }) {
       href={href}
       className="inline-flex min-h-[44px] items-center gap-[6px] text-[17px] text-caramel-dk hover:underline"
     >
-      <span aria-hidden="true">←</span> {label}
+      <ArrowLeft aria-hidden="true" strokeWidth={1.8} className="h-[18px] w-[18px] shrink-0" /> {label}
     </Link>
   );
 }

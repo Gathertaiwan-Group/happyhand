@@ -49,7 +49,7 @@ export function ProfileForm({
         required
         autoComplete="name"
         defaultValue={defaults.fullName}
-        hint="我們寄信與稱呼你的時候會用這個名字"
+        hint="寄信與稱呼你時用"
       />
       <Field
         label="手機"
@@ -58,7 +58,7 @@ export function ProfileForm({
         inputMode="tel"
         autoComplete="tel"
         defaultValue={defaults.phone}
-        hint="09 開頭共 10 個數字。工作坊有異動時我們會打給你。不想留可以空白。"
+        hint="09 開頭 10 碼，工作坊異動時聯絡你。可空白。"
       />
       <Field
         label="出生年"
@@ -66,7 +66,7 @@ export function ProfileForm({
         inputMode="numeric"
         autoComplete="bday-year"
         defaultValue={defaults.birthYear}
-        hint="四位數西元年，例如 1958。這是為了幫你調整練習強度，可以不填。"
+        hint="西元年，例如 1958。可不填。"
       />
 
       <div>

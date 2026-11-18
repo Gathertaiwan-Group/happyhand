@@ -16,8 +16,7 @@ export default function AccountNotFound() {
     <div className="rounded-card border border-sand-400 bg-cream-100 px-[22px] py-[30px] md:px-[40px] md:py-[40px]">
       <h1 className="t-h2 text-brown-900">找不到這一頁</h1>
       <p className="t-body mt-[14px] text-pretty text-brown-700">
-        這個連結可能已經過期，或者它不在你的帳號底下。
-        如果你是從舊的信件或書籤點進來的，回「我的訂單」重新找一次通常就會看到。
+        連結可能過期了，回「我的訂單」重新找一次通常就有。
       </p>
 
       <div className="mt-[24px] flex flex-col gap-[12px] sm:flex-row">
@@ -51,7 +50,7 @@ export default function AccountNotFound() {
           href={SITE.lineHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-caramel-dk hover:underline"
+          className="inline-block py-[10px] text-caramel-dk hover:underline"
         >
           用 LINE 問我們
           <span className="sr-only">（會開啟 LINE）</span>

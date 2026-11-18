@@ -10,6 +10,8 @@ import {
   type TeacherSetting,
 } from "@/lib/data";
 import { SITE } from "@/lib/site";
+import { Armchair, ChevronRight, Clock, Infinity as InfinityIcon, MapPin, MessageCircle, Users } from "lucide-react";
+import { ICON_STROKE } from "@/components/ui/icon-text";
 import { HomeSessions } from "./_components/home-sessions";
 import { SessionRow } from "./workshops/_components/session-row";
 import { SessionCard } from "./workshops/_components/session-card";
@@ -56,10 +58,8 @@ const HOME_COURSE_SLUGS: { slug: string; hideOnMobile?: boolean }[] = [
  */
 const NEW_DAYS = 14;
 
-/** footerLine 內的 LINE ID 要能直接點開，把字串切成「前段 / LINE ID / 後段」 */
-const [footerLineBeforeLine, footerLineAfterLine] = SITE.footerLine.split(
-  SITE.lineId,
-);
+/** 三項特點的圖示，順序對應 lib/content.ts 的 REASONS（每天十分鐘／坐著也能做／有人陪著練） */
+const REASON_ICONS = [Clock, Armchair, Users];
 
 export default async function HomePage() {
   // 併成一次 Promise.all：三個查詢彼此無關，串著等會多花兩趟往返
@@ -192,11 +192,12 @@ export default async function HomePage() {
                 href={CATEGORY_HREF.recorded}
                 className="-my-[10px] inline-flex min-h-[48px] items-center gap-[2px] text-[17px] text-brown-700 underline-offset-4 hover:text-caramel-dk hover:underline"
               >
-                看全部<span aria-hidden="true">›</span>
+                看全部<ChevronRight aria-hidden="true" strokeWidth={2} className="h-[18px] w-[18px]" />
               </Link>
             </div>
-            <p className="mt-[4px] text-[17px] leading-[1.75] text-pretty text-brown-700">
-              買了就能永久回放，不用配合時間，在家慢慢練。
+            <p className="mt-[4px] flex items-center gap-[6px] text-[17px] leading-[1.75] text-brown-700">
+              <InfinityIcon aria-hidden="true" strokeWidth={ICON_STROKE} className="h-[20px] w-[20px] shrink-0 text-caramel-dk" />
+              永久回放・不用配合時間
             </p>
 
             <ul className="mt-[16px] grid list-none gap-[12px] md:mt-[28px] md:grid-cols-2 md:gap-[24px] lg:grid-cols-3">
@@ -215,24 +216,29 @@ export default async function HomePage() {
       {/* ── 4. 三項理由 ── 手機改成靠左的三列，不再每一項置中佔掉半個螢幕 */}
       <section aria-label="快樂手的三個特點" className="border-t border-sand-300 px-[16px] py-[28px] md:px-[40px] md:py-[56px]">
         <ul className="mx-auto grid max-w-[1080px] gap-[18px] md:grid-cols-3 md:gap-[32px]">
-          {REASONS.map((reason) => (
-            <li key={reason.no} className="flex gap-[14px] md:flex-col md:gap-[8px] md:text-center">
+          {REASONS.map((reason, i) => {
+            const ReasonIcon = REASON_ICONS[i] ?? Clock;
+            return (
+            <li key={reason.no} className="flex items-center gap-[14px] md:flex-col md:items-stretch md:gap-[8px] md:text-center">
+              {/* 2026-11-18 減字：國字編號換成圖示；手機只留短說明（descMobile） */}
               <span
                 aria-hidden="true"
-                className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full bg-cream-200 font-serif text-[22px] text-caramel-dk md:mx-auto md:h-[56px] md:w-[56px] md:text-[26px]"
+                className="flex h-[48px] w-[48px] shrink-0 items-center justify-center rounded-full bg-cream-200 text-caramel-dk md:mx-auto md:h-[56px] md:w-[56px]"
               >
-                {reason.no}
+                <ReasonIcon strokeWidth={ICON_STROKE} className="h-[24px] w-[24px] md:h-[28px] md:w-[28px]" />
               </span>
               <div>
                 <h2 className="font-serif text-[20px] leading-[1.45] font-semibold text-brown-900 md:text-[23px]">
                   {reason.title}
                 </h2>
-                <p className="mt-[2px] text-[17px] leading-[1.75] text-pretty text-brown-700 md:mt-[6px]">
-                  {reason.desc}
+                <p className="text-[17px] leading-[1.7] text-pretty text-brown-700 md:mt-[6px]">
+                  <span className="md:hidden">{reason.descMobile}</span>
+                  <span className="hidden md:inline">{reason.desc}</span>
                 </p>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       </section>
 
@@ -271,8 +277,9 @@ export default async function HomePage() {
             {TEACHER.paragraphs.map((paragraph, i) => (
               <p
                 key={paragraph.slice(0, 8)}
+                /* 手機只留第一段，第二段在「看完整師資介紹」裡 */
                 className={`text-[17px] leading-[1.85] text-pretty text-brown-700 md:text-[18px] ${
-                  i === 0 ? "mt-[14px] md:mt-[20px]" : "mt-[10px] md:mt-[14px]"
+                  i === 0 ? "mt-[14px] md:mt-[20px]" : "mt-[10px] hidden md:mt-[14px] md:block"
                 }`}
               >
                 {paragraph}
@@ -282,7 +289,8 @@ export default async function HomePage() {
               href="/teachers"
               className="mt-[8px] inline-flex min-h-[48px] items-center border-b border-caramel text-[18px] text-brown-900 transition-colors duration-200 hover:text-caramel-dk"
             >
-              看完整師資介紹 →
+              看完整師資介紹
+              <ChevronRight aria-hidden="true" strokeWidth={2} className="ml-[2px] h-[18px] w-[18px]" />
             </Link>
           </div>
         </div>
@@ -300,28 +308,39 @@ export default async function HomePage() {
             id="contact-title"
             className="font-serif text-[23px] leading-[1.45] font-medium md:text-[32px]"
           >
-            想問什麼都可以，我們有真人回訊息
+            有問題？真人回覆
           </h2>
-          <p className="mt-[10px] text-[18px] leading-[1.9]">
-            {footerLineBeforeLine}
-            {/* LINE ID 要能直接點開，行內連結補上下 padding 讓觸控區達 44px */}
-            <a
-              href={SITE.lineHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="用 LINE 聯絡我們（會開啟 LINE）"
-              className="inline-block py-[9px] underline underline-offset-4 hover:text-cream-200"
-            >
-              {SITE.lineId}
-            </a>
-            {footerLineAfterLine}
-          </p>
+          {/* 2026-11-18 減字：公司・LINE・地址一長串改成兩行圖示 */}
+          <ul className="mx-auto mt-[12px] flex w-fit flex-col gap-[4px] text-left text-[17px] leading-[1.7]">
+            <li className="flex items-center gap-[8px]">
+              <MessageCircle aria-hidden="true" strokeWidth={ICON_STROKE} className="h-[20px] w-[20px] shrink-0" />
+              <span className="sr-only">LINE：</span>
+              {/* LINE ID 要能直接點開，行內連結補上下 padding 讓觸控區達 44px */}
+              <a
+                href={SITE.lineHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`LINE ${SITE.lineId}（會開啟 LINE）`}
+                className="inline-block py-[10px] underline underline-offset-4 hover:text-cream-200"
+              >
+                {SITE.lineId}
+              </a>
+            </li>
+            <li className="flex items-start gap-[8px]">
+              <MapPin aria-hidden="true" strokeWidth={ICON_STROKE} className="mt-[0.25em] h-[20px] w-[20px] shrink-0" />
+              <span>
+                <span className="sr-only">地址：</span>
+                {SITE.address}
+              </span>
+            </li>
+          </ul>
           <a
             href={SITE.lineHref}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-[14px] inline-flex min-h-[56px] w-full items-center justify-center rounded-pill bg-white px-[32px] text-[18px] font-medium text-brown-900 transition-colors duration-200 hover:bg-cream-200 md:w-auto"
           >
+            <MessageCircle aria-hidden="true" strokeWidth={ICON_STROKE} className="mr-[8px] h-[22px] w-[22px]" />
             用 LINE 問我們
             <span className="sr-only">（會開啟 LINE）</span>
           </a>

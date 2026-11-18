@@ -1,5 +1,6 @@
 import { SITE } from "@/lib/site";
 import { LinkButton, buttonClass } from "@/components/ui/button";
+import { MessageCircle } from "lucide-react";
 
 /**
  * 手機固定行動列（README §4.1 #7）
@@ -32,9 +33,10 @@ export function MobileActionBar({
             rel="noopener noreferrer"
             className={buttonClass({
               variant: "outline",
-              className: "flex-1 px-2 text-[17px]",
+              className: "flex-1 gap-[6px] px-2 text-[17px] whitespace-nowrap",
             })}
           >
+            <MessageCircle aria-hidden="true" strokeWidth={1.8} className="h-[20px] w-[20px] shrink-0 text-caramel-dk" />
             用 LINE 問
             <span className="sr-only">（會開啟 LINE）</span>
           </a>

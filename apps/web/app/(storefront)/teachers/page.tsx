@@ -6,6 +6,7 @@ import { MobileActionBar } from "@/components/mobile-action-bar";
 import { PageHero } from "@/app/_components/page-hero";
 import { CallBand } from "@/app/_components/call-band";
 import { TeacherFeature } from "@/app/_components/teacher-feature";
+import { MonitorPlay, Video } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "師資介紹",
@@ -36,7 +37,7 @@ export default async function TeachersPage() {
       <PageHero
         eyebrow={TEACHER.eyebrow}
         title={TEACHER.name}
-        lead="台北、台中每個月都有她的課。線上課程也是她一堂一堂錄的，你在家裡坐著跟著做就好。"
+        lead="台北、台中每月開課；線上課程也由她親自錄製。"
       />
 
       {/* 老師區（設計稿 895–910 行桌機、949–959 行手機） */}
@@ -62,7 +63,7 @@ export default async function TeachersPage() {
         <div className="mx-auto max-w-[860px] px-[20px] py-[40px] text-center md:px-[40px] md:py-[64px]">
           <h2 className="t-h2">想上她的課</h2>
           <p className="t-body mx-auto mt-[14px] max-w-[580px] text-pretty text-brown-500 md:mt-[18px]">
-            預錄課程隨時都能開始，買了之後永久回放，看幾次都可以；想跟她一起練的話，有線上直播，也有台北的線下工作坊。
+            預錄課程永久回放；想跟她一起練，有直播與台北工作坊。
           </p>
 
           <div className="mt-[22px] flex flex-col gap-[10px] md:mt-[28px] md:flex-row md:justify-center md:gap-[16px]">
@@ -71,8 +72,9 @@ export default async function TeachersPage() {
               variant="primary"
               size="lg"
               fullWidth
-              className="md:w-auto"
+              className="gap-[8px] md:w-auto"
             >
+              <MonitorPlay aria-hidden="true" strokeWidth={1.8} className="h-[21px] w-[21px]" />
               看預錄課程
             </LinkButton>
             <LinkButton
@@ -80,15 +82,16 @@ export default async function TeachersPage() {
               variant="outline"
               size="lg"
               fullWidth
-              className="md:w-auto"
+              className="gap-[8px] md:w-auto"
             >
+              <Video aria-hidden="true" strokeWidth={1.8} className="h-[21px] w-[21px] text-caramel-dk" />
               看直播與工作坊
             </LinkButton>
           </div>
         </div>
       </section>
 
-      <CallBand note="想先問問看課程適不適合你，或是想確認台北實體班的日期，用 LINE 問我們就好。" />
+      <CallBand note="適不適合、哪天開班，用 LINE 問就好。" />
 
       <MobileActionBar href="/courses" label="開始線上練習" />
     </div>

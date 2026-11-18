@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import { Check } from "lucide-react";
 
 /**
  * 三步驟橫向進度指示（設計稿 634–640 桌機／713–719 手機、README §4.5）
@@ -51,7 +52,11 @@ export function CheckoutSteps({ current }: { current: 1 | 2 | 3 }) {
                   done ? "bg-caramel-ink" : "bg-sand-400"
                 }`}
               >
-                {step.n}
+                {step.n < current ? (
+                  <Check strokeWidth={2.6} className="h-[15px] w-[15px] md:h-[17px] md:w-[17px]" />
+                ) : (
+                  step.n
+                )}
               </span>
               <span className="text-[15px] md:text-[17px]">{step.label}</span>
               <span className="sr-only">

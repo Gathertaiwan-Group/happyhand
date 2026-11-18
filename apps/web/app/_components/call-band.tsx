@@ -1,4 +1,5 @@
 import { SITE } from "@/lib/site";
+import { MapPin, MessageCircle } from "lucide-react";
 
 /**
  * 焦糖色「用 LINE 問」出口（設計稿 930–933 行桌機、973–977 行手機）
@@ -38,15 +39,20 @@ export function CallBand({
           rel="noopener noreferrer"
           className="mx-auto mt-[18px] flex min-h-[56px] w-full items-center justify-center rounded-pill bg-white px-[24px] text-[19px] text-brown-900 transition-colors duration-200 hover:bg-cream-200 md:mt-[24px] md:inline-flex md:w-auto md:px-[40px]"
         >
+          <MessageCircle aria-hidden="true" strokeWidth={1.8} className="mr-[8px] h-[20px] w-[20px] text-caramel-dk" />
           加我們的 LINE
           <span className="sr-only">（會開啟 LINE）</span>
         </a>
 
         <p className="t-caption mt-[16px] text-white">
-          <span className="md:hidden">
-            {SITE.company}
-            <br />
-            {SITE.address}
+          <span className="inline-flex items-start gap-[6px] md:hidden">
+            <MapPin aria-hidden="true" strokeWidth={1.8} className="mt-[0.25em] h-[16px] w-[16px] shrink-0" />
+            <span className="sr-only">地址：</span>
+            <span className="text-left">
+              {SITE.company}
+              <br />
+              {SITE.address}
+            </span>
           </span>
           <span className="hidden md:inline">{SITE.footerLine}</span>
         </p>

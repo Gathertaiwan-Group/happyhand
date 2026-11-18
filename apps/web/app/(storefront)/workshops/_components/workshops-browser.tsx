@@ -3,6 +3,7 @@
 import { Fragment, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { SITE } from "@/lib/site";
+import { LayoutGrid, Link2, MessageCircle, Users, Video } from "lucide-react";
 import {
   CATEGORY_LABEL,
   categoryFromParams,
@@ -30,15 +31,15 @@ export type SessionItem = {
 const INTRO: Record<View, { title: string; lead: string }> = {
   all: {
     title: "直播與工作坊場次",
-    lead: "選一個方便的日子，點進去看介紹、報名。",
+    lead: "選日子，點進去看介紹、報名。",
   },
   live: {
     title: "線上直播",
-    lead: "排好時間的直播課，在家打開視訊就能跟著老師做。",
+    lead: "在家開視訊，跟老師即時練。",
   },
   onsite: {
     title: "線下工作坊",
-    lead: "小班制，老師一個一個看過去。工具講義都準備好，空手來就行。",
+    lead: "小班面對面，工具講義備好，空手來就行。",
   },
 };
 
@@ -124,7 +125,8 @@ function Inner({
           </p>
           {/* 不方便線上付款的長輩多半直接用 LINE 報名。手機以前靠底部固定列，
               現在拿掉固定列，改成這裡一行看得到的連結。 */}
-          <p className="mt-[2px] text-[17px] leading-[1.75] text-brown-700 md:mt-[6px] md:text-[18px]">
+          <p className="mt-[2px] flex items-center gap-[6px] text-[17px] leading-[1.75] text-brown-700 md:mt-[6px] md:justify-center md:text-[18px]">
+            <MessageCircle aria-hidden="true" strokeWidth={1.8} className="h-[18px] w-[18px] shrink-0 text-caramel-dk" />
             不方便線上付款？
             <a
               href={SITE.lineHref}
@@ -164,6 +166,13 @@ function Inner({
                     isActive ? "bg-brown-900 text-white" : "text-brown-900 hover:bg-cream-300",
                   ].join(" ")}
                 >
+                  {t.key === "all" ? (
+                    <LayoutGrid aria-hidden="true" strokeWidth={1.8} className="hidden h-[18px] w-[18px] shrink-0 min-[400px]:block" />
+                  ) : t.key === "live" ? (
+                    <Video aria-hidden="true" strokeWidth={1.8} className="hidden h-[18px] w-[18px] shrink-0 min-[400px]:block" />
+                  ) : (
+                    <Users aria-hidden="true" strokeWidth={1.8} className="hidden h-[18px] w-[18px] shrink-0 min-[400px]:block" />
+                  )}
                   {t.key === "all" ? "全部" : t.label}
                   <span className={`text-[15px] font-normal ${isActive ? "text-cream-200" : "text-brown-700"}`}>
                     {n}
@@ -173,8 +182,9 @@ function Inner({
             })}
           </div>
           {hasOnlineSessions && view !== "onsite" && (
-            <p className="mx-auto mt-[10px] max-w-[1080px] text-[16px] leading-[1.7] text-brown-700 md:text-center">
-              標「線上」的場次，上課連結會在開課前用 Email 或 LINE 傳給你。
+            <p className="mx-auto mt-[10px] flex max-w-[1080px] items-start gap-[6px] text-[16px] leading-[1.7] text-brown-700 md:justify-center">
+              <Link2 aria-hidden="true" strokeWidth={1.8} className="mt-[0.25em] h-[18px] w-[18px] shrink-0 text-caramel-dk" />
+              <span>線上場次的連結，開課前用 Email 或 LINE 傳給你。</span>
             </p>
           )}
         </div>

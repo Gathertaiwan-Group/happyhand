@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { AccountSidebar } from "./account-nav";
 import {
   ACCOUNT_NAV_COLLAPSED,
@@ -106,20 +107,6 @@ function PanelIcon({
   collapsed: boolean;
   className?: string;
 }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <rect x="3" y="4" width="18" height="16" rx="2.5" />
-      <path d="M9.5 4v16" />
-      {collapsed ? <path d="M14 9.5l2.5 2.5L14 14.5" /> : <path d="M17 9.5L14.5 12l2.5 2.5" />}
-    </svg>
-  );
+  const I = collapsed ? PanelLeftOpen : PanelLeftClose;
+  return <I aria-hidden="true" strokeWidth={1.8} className={className} />;
 }

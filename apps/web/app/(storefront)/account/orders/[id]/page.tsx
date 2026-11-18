@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { formatPrice } from "@/lib/site";
+import { IconText } from "@/components/ui/icon-text";
+import { CalendarDays, MapPin } from "lucide-react";
 import { getMyOrder } from "../../queries";
 import {
   BackLink,
@@ -87,9 +89,13 @@ export default async function AccountOrderDetailPage({
                 </p>
               </div>
               {item.sessionStartsAt && (
-                <p className="t-body-sm mt-[6px] text-brown-500">
-                  場次：{formatSessionTime(item.sessionStartsAt)}
-                  {item.sessionLocation ? `・${item.sessionLocation}` : ""}
+                <p className="t-body-sm mt-[6px] flex flex-col gap-[2px] text-brown-500">
+                  <IconText icon={CalendarDays} label="場次">
+                    {formatSessionTime(item.sessionStartsAt)}
+                  </IconText>
+                  {item.sessionLocation && (
+                    <IconText icon={MapPin} label="地點">{item.sessionLocation}</IconText>
+                  )}
                 </p>
               )}
             </li>
@@ -121,7 +127,7 @@ export default async function AccountOrderDetailPage({
       </Card>
 
       <p className="t-body-sm mt-[20px] text-pretty text-brown-500">
-        訂單有問題嗎？用 LINE 跟我們說，把上面的訂單編號貼給我們就可以了。
+        訂單有問題？LINE 貼上訂單編號就好。
       </p>
       <div className="mt-[12px]">
         <LineButton />

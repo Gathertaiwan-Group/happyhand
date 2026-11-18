@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/ui/button";
+import { KeyRound, LogOut, Mail, UserRound, type LucideIcon } from "lucide-react";
 import { getMember } from "@/lib/account/guard";
 import { Card, LineButton, PageHeading } from "../_components/shell";
 import { ProfileForm } from "./_components/profile-form";
@@ -28,11 +29,11 @@ export default async function AccountSettingsPage() {
     <>
       <PageHeading
         title="我的資料"
-        lead="這些資料只有我們看得到，用來聯絡你與寄送課本。"
+        lead="只有我們看得到，用來聯絡你與寄課本。"
       />
 
       <Card>
-        <h2 className="t-h3 mb-[16px] text-brown-900">基本資料</h2>
+        <CardTitle icon={UserRound} className="mb-[16px]">基本資料</CardTitle>
         <ProfileForm
           defaults={{
             fullName: member?.fullName ?? "",
@@ -43,23 +44,21 @@ export default async function AccountSettingsPage() {
       </Card>
 
       <Card className="mt-[18px]">
-        <h2 className="t-h3 text-brown-900">登入用的信箱</h2>
+        <CardTitle icon={Mail}>登入用的信箱</CardTitle>
         <p className="t-body mt-[10px] break-all text-brown-900">
           {member?.email ?? "—"}
         </p>
         <p className="t-body-sm mt-[10px] text-pretty text-brown-500">
-          這個信箱同時是你的帳號，也是我們找出你買過哪些課的依據，
-          所以不能在這裡自己改。真的需要換信箱的話用 LINE 跟我們說，
-          我們幫你換，你買過的課會一起帶過去。
+          信箱是你的帳號，也綁著你買過的課，所以不能自己改。
+          要換用 LINE 說，買過的課會一起帶過去。
         </p>
         <LineButton className="mt-[16px]" label="我要換信箱" />
       </Card>
 
       <Card className="mt-[18px]">
-        <h2 className="t-h3 text-brown-900">密碼</h2>
+        <CardTitle icon={KeyRound}>密碼</CardTitle>
         <p className="t-body mt-[10px] text-pretty text-brown-700">
-          想換一組新密碼，或是根本沒設定過密碼（用 LINE、Google 登入的話就是這樣），
-          都可以在這裡設定。
+          換密碼，或用 LINE／Google 登入、還沒設過密碼，都在這裡設定。
         </p>
         <Link
           href="/reset-password"
@@ -75,10 +74,9 @@ export default async function AccountSettingsPage() {
       </Card>
 
       <Card className="mt-[18px]">
-        <h2 className="t-h3 text-brown-900">登出</h2>
+        <CardTitle icon={LogOut}>登出</CardTitle>
         <p className="t-body mt-[10px] text-pretty text-brown-700">
-          如果這是別人的電腦或手機，記得登出。你買的課不會不見，
-          下次用同一個信箱登入就看得到了。
+          用別人的電腦或手機記得登出，課不會不見。
         </p>
         {/* 原生 form POST：/logout 只收 POST（收 GET 的話 <img src="/logout">
             就能把人登出）。不需要 client component。 */}
@@ -97,5 +95,22 @@ export default async function AccountSettingsPage() {
         </form>
       </Card>
     </>
+  );
+}
+
+function CardTitle({
+  icon: Icon,
+  children,
+  className = "",
+}: {
+  icon: LucideIcon;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <h2 className={`t-h3 flex items-center gap-[10px] text-brown-900 ${className}`}>
+      <Icon aria-hidden="true" strokeWidth={1.8} className="h-[22px] w-[22px] shrink-0 text-caramel-dk" />
+      {children}
+    </h2>
   );
 }

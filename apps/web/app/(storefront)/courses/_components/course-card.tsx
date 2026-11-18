@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { Figure } from "@/components/ui/placeholder";
 import { formatPrice } from "@/lib/site";
 import type { ProductWithSessions } from "@/lib/data";
@@ -90,9 +91,7 @@ export function CourseCard({
             ].join(" ")}
           >
             {cta}
-            <span aria-hidden="true" className="md:hidden">
-              ›
-            </span>
+            <ChevronRight aria-hidden="true" strokeWidth={2} className="h-[18px] w-[18px] md:hidden" />
           </Link>
         </div>
       </div>

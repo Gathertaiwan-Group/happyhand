@@ -6,6 +6,8 @@ import { LinkButton, buttonClass } from "@/components/ui/button";
 import { Figure } from "@/components/ui/placeholder";
 import { SITE, formatPrice } from "@/lib/site";
 import { CheckoutSteps } from "@/app/(storefront)/checkout/_components/checkout-steps";
+import { CalendarDays, MessageCircle, Minus, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { IconText, ICON_CLASS, ICON_STROKE } from "@/components/ui/icon-text";
 
 const TYPE_LABEL: Record<CartItem["type"], string> = {
   // 購物車品項帶不到場次形式，workshop 這裡不分直播／線下，只說是哪一種買法
@@ -78,7 +80,9 @@ export function CartView() {
                     </h2>
                     {item.sessionLabel && (
                       <p className="mt-[4px] text-[16px] text-brown-500">
-                        {item.sessionLabel}
+                        <IconText icon={CalendarDays} label="場次">
+                          {item.sessionLabel}
+                        </IconText>
                       </p>
                     )}
                     <p className="mt-[6px] text-[16px] text-brown-300">
@@ -95,7 +99,7 @@ export function CartView() {
                         onClick={() => changeQty(item, -1)}
                         className={QTY_BUTTON}
                       >
-                        <span aria-hidden>−</span>
+                        <Minus aria-hidden="true" strokeWidth={2} className="h-[20px] w-[20px]" />
                       </button>
                       <span
                         aria-label={`目前數量 ${item.qty} 件`}
@@ -109,7 +113,7 @@ export function CartView() {
                         onClick={() => changeQty(item, 1)}
                         className={QTY_BUTTON}
                       >
-                        <span aria-hidden>＋</span>
+                        <Plus aria-hidden="true" strokeWidth={2} className="h-[20px] w-[20px]" />
                       </button>
                     </div>
 
@@ -120,8 +124,9 @@ export function CartView() {
                     <button
                       type="button"
                       onClick={() => removeItem(item)}
-                      className="min-h-[56px] rounded-pill px-[12px] text-[17px] text-brown-500 underline underline-offset-4 transition-colors duration-200 hover:text-caramel-dk"
+                      className="inline-flex min-h-[56px] items-center gap-[4px] rounded-pill px-[12px] text-[17px] text-brown-500 transition-colors duration-200 hover:text-caramel-dk"
                     >
+                      <Trash2 aria-hidden="true" strokeWidth={ICON_STROKE} className={ICON_CLASS} />
                       移除
                       <span className="sr-only">「{item.title}」</span>
                     </button>
@@ -158,13 +163,13 @@ export function CartView() {
                 </LinkButton>
               </div>
 
-              <p className="mt-[14px] text-[16px] leading-[1.8] text-brown-300">
-                下一步填聯絡資料與付款方式，還不會扣款。
+              <p className="mt-[14px] text-[16px] leading-[1.7] text-brown-500">
+                <IconText icon={ShieldCheck}>下一步填資料，還不會扣款</IconText>
               </p>
 
               <div className="mt-[16px] border-t border-sand-300 pt-[16px]">
-                <p className="text-[16px] leading-[1.8] text-brown-500">
-                  不方便自己操作？用 LINE 告訴我們，我們幫你處理。
+                <p className="text-[16px] leading-[1.7] text-brown-500">
+                  <IconText icon={MessageCircle}>不方便操作？LINE 幫你處理</IconText>
                 </p>
                 <a
                   href={SITE.lineHref}
@@ -242,7 +247,7 @@ function EmptyCart() {
         購物車還是空的
       </p>
       <p className="t-body mx-auto mt-[12px] max-w-[520px] text-brown-500">
-        還沒有選課程。看看有哪些課，或是用 LINE 問我們哪一門適合你。
+        還沒選課程，不知道選哪門可以問 LINE。
       </p>
       <div className="mt-[28px] flex flex-col items-center justify-center gap-[12px] sm:flex-row">
         <LinkButton

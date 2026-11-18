@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/components/ui/button";
 import { Figure } from "@/components/ui/placeholder";
+import { IconText } from "@/components/ui/icon-text";
+import { BookOpenCheck, CalendarClock, Infinity as InfinityIcon, KeyRound, Mail } from "lucide-react";
 import { getMember } from "@/lib/account/guard";
 import { getMyCourses, type MyCourse } from "./queries";
 import {
@@ -48,7 +50,7 @@ export default async function AccountHomePage() {
         title="我的學習"
         lead={
           courses.length > 0
-            ? `${greeting}。你買過的課都在這裡，想看幾次都可以。`
+            ? `${greeting}。`
             : `${greeting}。`
         }
       />
@@ -73,9 +75,7 @@ export default async function AccountHomePage() {
           </Link>
 
           <p className="mt-[24px] border-t border-sand-300 pt-[20px]">
-            如果你買過課卻看不到，可能是登入的信箱跟下單時填的不一樣。
-            <br className="hidden sm:block" />
-            用 LINE 跟我們說一聲，報你的名字就好，我們幫你查。
+            買了卻看不到？多半是登入信箱跟下單時不同，LINE 報名字我們幫你查。
           </p>
           <div className="mt-[14px]">
             <LineButton label="買了課卻看不到？問我們" />
@@ -83,12 +83,9 @@ export default async function AccountHomePage() {
         </EmptyState>
       ) : (
         <>
-          <p className="t-body rounded-card bg-cream-100 px-[20px] py-[16px] text-brown-900 md:px-[26px] md:py-[18px]">
-            <strong className="font-semibold">
-              課程不限觀看次數，也沒有觀看期限。
-            </strong>
-            <br className="sm:hidden" />
-            <span className="text-brown-700"> 你想看幾次都可以，慢慢來沒關係。</span>
+          <p className="t-body flex items-center gap-[10px] rounded-card bg-cream-100 px-[20px] py-[14px] text-brown-900 md:px-[26px] md:py-[16px]">
+            <InfinityIcon aria-hidden="true" strokeWidth={1.8} className="h-[24px] w-[24px] shrink-0 text-caramel-dk" />
+            <strong className="font-semibold">不限次數・沒有觀看期限</strong>
           </p>
 
           <ul className="mt-[18px] flex flex-col gap-[16px] md:mt-[24px] md:gap-[20px]">
@@ -123,10 +120,12 @@ export default async function AccountHomePage() {
 function PasswordReminder() {
   return (
     <section className="mt-[24px] rounded-card border border-sand-300 px-[20px] py-[18px] md:mt-[32px] md:px-[26px] md:py-[22px]">
-      <h2 className="t-h3 text-brown-900">換一組只有你知道的密碼</h2>
+      <h2 className="t-h3 flex items-center gap-[10px] text-brown-900">
+        <KeyRound aria-hidden="true" strokeWidth={1.8} className="h-[22px] w-[22px] shrink-0 text-caramel-dk" />
+        換一組只有你知道的密碼
+      </h2>
       <p className="t-body mt-[8px] text-pretty text-brown-700">
-        如果你現在用的是我們提供的預設密碼，建議改成自己的。
-        改好之後，下次就用新的密碼登入。
+        還在用我們給的預設密碼？建議改成自己的。
       </p>
       <div className="mt-[16px]">
         <Link
@@ -155,12 +154,12 @@ function progressSentence(course: MyCourse): string {
   // 訂閱制（例如「24 節氣年度陪伴計畫」）本來就沒有影片單元，內容是寄信給你的。
   // 套用「課程內容準備中」會讓客人以為東西還沒做好、跑來問什麼時候開課。
   if (course.type === "subscription") {
-    return "這是訂閱制的陪伴計畫，內容會依節氣寄到你的信箱，不用來這裡看。";
+    return "訂閱制：內容依節氣寄到你的信箱。";
   }
-  if (course.totalLessons === 0) return "課程內容準備中，開課我們會用 LINE 通知你。";
-  if (course.completedLessons === 0) return `這門課有 ${course.totalLessons} 堂，還沒開始。`;
+  if (course.totalLessons === 0) return "準備中，開課會用 LINE 通知你。";
+  if (course.completedLessons === 0) return `共 ${course.totalLessons} 堂，還沒開始。`;
   const left = course.totalLessons - course.completedLessons;
-  if (left === 0) return `這門課 ${course.totalLessons} 堂你都上完了，隨時可以再看一次。`;
+  if (left === 0) return `${course.totalLessons} 堂都上完了，隨時可以再看。`;
   return `你已經上完 ${course.completedLessons} 堂，還有 ${left} 堂。`;
 }
 
@@ -194,12 +193,19 @@ function CourseCard({ course }: { course: MyCourse }) {
           )}
 
           <p className="t-body mt-[12px] text-brown-700">
-            {progressSentence(course)}
+            <IconText
+              icon={course.type === "subscription" ? Mail : BookOpenCheck}
+              label="進度"
+            >
+              {progressSentence(course)}
+            </IconText>
           </p>
 
           {course.expiresAt && !course.expired && (
             <p className="t-body-sm mt-[6px] text-brown-500">
-              這門課可以看到 {course.expiresAt.slice(0, 10).replaceAll("-", "/")}。
+              <IconText icon={CalendarClock} label="觀看期限">
+                可看到 {course.expiresAt.slice(0, 10).replaceAll("-", "/")}
+              </IconText>
             </p>
           )}
 
@@ -222,13 +228,9 @@ function CourseCard({ course }: { course: MyCourse }) {
               <LineButton label="想繼續看？跟我們說" />
             ) : course.type === "subscription" ? (
               <p className="t-body-sm text-brown-500">
-                有問題或想調整寄送方式，用 LINE 跟我們說就好。
+                想調整寄送方式，用 LINE 跟我們說。
               </p>
-            ) : (
-              <p className="t-body-sm text-brown-500">
-                內容準備好我們會用 LINE 通知你。
-              </p>
-            )}
+            ) : null /* 準備中：上面那一行已經說會用 LINE 通知 */}
           </div>
         </div>
       </div>

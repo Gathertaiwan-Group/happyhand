@@ -12,6 +12,8 @@ import { findProduct } from "@/lib/content";
 import { suggestEmail } from "@/lib/email-typo";
 import { SITE, formatPrice } from "@/lib/site";
 import { CheckoutSteps } from "./checkout-steps";
+import { CalendarDays, MessageCircle, UserCheck } from "lucide-react";
+import { IconText } from "@/components/ui/icon-text";
 import { PaymentOptions, type PaymentMethod } from "./payment-options";
 import { InvoiceOptions, EMPTY_INVOICE, type InvoiceValue } from "./invoice-options";
 import { validateInvoice } from "@/lib/invoice/validate";
@@ -337,7 +339,7 @@ export function CheckoutView({
                   role="status"
                   className="mt-[12px] rounded-card bg-cream-100 px-[18px] py-[12px] text-[16.5px] leading-[1.8] text-brown-700"
                 >
-                  你已經登入了，資料先幫你帶進來。不對的話可以直接改。
+                  <IconText icon={UserCheck}>已帶入你的資料，可直接修改</IconText>
                 </p>
               )}
 
@@ -414,7 +416,7 @@ export function CheckoutView({
                     hint={
                       needsAddress
                         ? "課本會寄到這裡"
-                        : "課本會寄到這裡。這次訂單沒有紙本課本，可以不用填。"
+                        : "這次沒有紙本課本，可以不填"
                     }
                   />
                 </div>
@@ -425,7 +427,7 @@ export function CheckoutView({
                     as="textarea"
                     value={note}
                     onChange={setNote}
-                    hint="想先跟我們說什麼都可以，沒有也沒關係。"
+                    hint="選填"
                   />
                 </div>
               </div>
@@ -434,7 +436,7 @@ export function CheckoutView({
                 <div className="mt-[24px] rounded-card border border-sand-400 px-[20px] py-[22px] md:px-[26px]">
                   <h2 className="t-h3 text-brown-900">報名資料</h2>
                   <p className="t-body-sm mt-[6px] text-brown-500">
-                    這幾題是給老師備課用的，讓他知道大家的狀況。
+                    給老師備課用。
                   </p>
 
                   <div className="mt-[18px] flex flex-col gap-[18px]">
@@ -472,7 +474,7 @@ export function CheckoutView({
                       as="textarea"
                       value={intakeGoal}
                       onChange={setIntakeGoal}
-                      hint="簡單寫幾句就好，老師會參考大家的狀況調整內容。"
+                      hint="簡單幾句就好"
                     />
 
                     <fieldset>
@@ -556,7 +558,9 @@ export function CheckoutView({
                       </p>
                       {i.sessionLabel && (
                         <p className="mt-[4px] text-[16px] text-brown-500">
-                          {i.sessionLabel}
+                          <IconText icon={CalendarDays} label="場次">
+                            {i.sessionLabel}
+                          </IconText>
                         </p>
                       )}
                       <p className="mt-[6px] text-[16px] text-caramel-ink">
@@ -610,8 +614,8 @@ export function CheckoutView({
               </p>
 
               <div className="mt-[16px] border-t border-sand-300 pt-[16px]">
-                <p className="text-[16px] leading-[1.8] text-brown-500">
-                  填到一半卡住了？用 LINE 問我們，我們陪你一起填。
+                <p className="text-[16px] leading-[1.7] text-brown-500">
+                  <IconText icon={MessageCircle}>卡住了？LINE 陪你一起填</IconText>
                 </p>
                 <a
                   href={SITE.lineHref}
@@ -666,7 +670,7 @@ function EmptyCartNotice() {
         購物車還是空的
       </p>
       <p className="t-body mx-auto mt-[12px] max-w-[520px] text-brown-500">
-        還沒有要報名的課程，先回課程列表挑一門，再回來填資料就可以了。
+        先挑一門課，再回來填資料。
       </p>
       <div className="mt-[28px] flex flex-col items-center justify-center gap-[12px] sm:flex-row">
         <LinkButton

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { buttonClass } from "@/components/ui/button";
 import { SITE } from "@/lib/site";
+import { MessageCircle, Users } from "lucide-react";
 import { getProducts, getWorkshopSessions } from "@/lib/data";
 import { SessionRow } from "./_components/session-row";
 import { SessionCard } from "./_components/session-card";
@@ -69,14 +70,19 @@ export default async function WorkshopsPage() {
       <section className="fab-safe px-[16px] pt-[20px] pb-[32px] md:px-[40px] md:pt-[32px] md:pb-[48px]">
         <div className="mx-auto max-w-[1080px]">
           {/* 包班詢問（設計稿 L540–546） */}
-          <div className="flex flex-col gap-[16px] rounded-sm border border-dashed border-sand-400 p-[20px] md:flex-row md:items-center md:justify-between md:gap-[24px] md:p-[26px_30px]">
-            <div>
-              <h2 className="font-serif text-[19px] font-semibold text-brown-900 md:text-[21px]">
-                想揪一群朋友一起上？
-              </h2>
-              <p className="mt-[8px] text-[17px] leading-[1.9] text-brown-500">
-                滿 6 人可以另外安排包班，地點時間都能談。
-              </p>
+          <div className="flex flex-col gap-[14px] rounded-sm border border-dashed border-sand-400 p-[18px] md:flex-row md:items-center md:justify-between md:gap-[24px] md:p-[26px_30px]">
+            <div className="flex items-center gap-[12px]">
+              <span aria-hidden="true" className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full bg-cream-200 text-caramel-dk">
+                <Users strokeWidth={1.8} className="h-[22px] w-[22px]" />
+              </span>
+              <div>
+                <h2 className="font-serif text-[19px] font-semibold text-brown-900 md:text-[21px]">
+                  揪團包班
+                </h2>
+                <p className="text-[17px] leading-[1.7] text-brown-500">
+                  滿 6 人・時間地點可談
+                </p>
+              </div>
             </div>
             <a
               href={SITE.lineHref}
@@ -87,6 +93,7 @@ export default async function WorkshopsPage() {
                 className: "w-full whitespace-nowrap md:w-auto",
               })}
             >
+              <MessageCircle aria-hidden="true" strokeWidth={1.8} className="mr-[8px] h-[20px] w-[20px]" />
               問包班
               <span className="sr-only">（會開啟 LINE）</span>
             </a>

@@ -3,6 +3,15 @@ import type { ReactNode } from "react";
 import { SITE } from "@/lib/site";
 import { PageHero } from "@/app/_components/page-hero";
 import { CallBand } from "@/app/_components/call-band";
+import {
+  BookOpen,
+  CreditCard,
+  MessageCircle,
+  PlayCircle,
+  RotateCcw,
+  ShieldCheck,
+  type LucideIcon,
+} from "lucide-react";
 
 export const metadata: Metadata = {
   title: "服務條款與退費規定",
@@ -34,11 +43,11 @@ export default function TermsPage() {
       <PageHero
         eyebrow="TERMS"
         title="服務條款與退費規定"
-        lead="這一頁寫的是你在快樂手買課、上課、還有需要退費時，我們會怎麼做。看不懂或有疑問，直接用 LINE 問我們就好。"
+        lead="買課、上課、退費，我們會怎麼做。有疑問用 LINE 問我們。"
       />
 
       <div className="mx-auto max-w-[760px] px-[20px] pb-[56px] md:px-[40px] md:pb-[72px]">
-        <Section title="一、你買的是什麼">
+        <Section title="一、你買的是什麼" icon={BookOpen}>
           <P>
             快樂手提供兩種東西：<Strong>線上課程</Strong>（影片，在網站上看）與
             <Strong>實體工作坊</Strong>（到現場上課）。有些課程另外附紙本課本，
@@ -51,7 +60,7 @@ export default function TermsPage() {
           </P>
         </Section>
 
-        <Section title="二、怎麼開通、可以看多久">
+        <Section title="二、怎麼開通、可以看多久" icon={PlayCircle}>
           <P>
             下單之後我們會用你填的 Email 幫你開一個帳號，並寄一封信讓你設定密碼。
             我們確認收到款項後就會開通課程，並再寄一封通知信給你。
@@ -66,7 +75,7 @@ export default function TermsPage() {
           </P>
         </Section>
 
-        <Section title="三、付款方式">
+        <Section title="三、付款方式" icon={CreditCard}>
           <P>
             目前提供 <Strong>ATM 匯款</Strong>與
             <Strong>請我們代訂（用 LINE 聯絡）</Strong>兩種方式。
@@ -76,7 +85,7 @@ export default function TermsPage() {
           </P>
         </Section>
 
-        <Section title="四、退費">
+        <Section title="四、退費" icon={RotateCcw}>
           <P>
             我們是小團隊，退費一律<Strong>個別處理</Strong>，不用填表單。
             用 LINE 跟我們說你的訂單編號與情況就可以，我們會盡快回覆你。
@@ -91,7 +100,7 @@ export default function TermsPage() {
           </P>
         </Section>
 
-        <Section title="五、你的個人資料">
+        <Section title="五、你的個人資料" icon={ShieldCheck}>
           <P>
             我們會蒐集你在結帳時填寫的姓名、電話、Email、寄送地址，
             用途只有三個：<Strong>聯絡你、寄送課本、開通課程</Strong>。
@@ -103,7 +112,7 @@ export default function TermsPage() {
           </P>
         </Section>
 
-        <Section title="六、聯絡我們">
+        <Section title="六、聯絡我們" icon={MessageCircle}>
           <P>
             任何問題都可以用 LINE 官方帳號{" "}
             <Strong>{SITE.lineId}</Strong> 找到我們，有真人回覆。
@@ -117,7 +126,7 @@ export default function TermsPage() {
           </P>
         </Section>
 
-        <p className="mt-[36px] border-t border-sand-300 pt-[20px] text-[16px] leading-[1.8] text-brown-300">
+        <p className="mt-[36px] border-t border-sand-300 pt-[20px] text-[16px] leading-[1.8] text-brown-500">
           {SITE.disclaimer}
         </p>
       </div>
@@ -136,10 +145,26 @@ export default function TermsPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  icon?: LucideIcon;
+  children: ReactNode;
+}) {
   return (
     <section className="mt-[32px] first:mt-[8px] md:mt-[44px]">
-      <h2 className="t-h2 text-brown-900">{title}</h2>
+      {/* 2026-11-18：每一節加圖示小標方便掃讀。🔴 條文本身一個字都不刪（退費與個資是紅線）。 */}
+      <h2 className="t-h2 flex items-center gap-[10px] text-brown-900">
+        {Icon && (
+          <span className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-full bg-cream-200 text-caramel-dk">
+            <Icon aria-hidden="true" strokeWidth={1.8} className="h-[22px] w-[22px]" />
+          </span>
+        )}
+        <span>{title}</span>
+      </h2>
       <div className="mt-[14px] flex flex-col gap-[14px] md:mt-[18px]">
         {children}
       </div>

@@ -1,4 +1,19 @@
 import { Accordion } from "@/components/ui/accordion";
+import { ReadMore } from "@/components/ui/read-more";
+import {
+  Check,
+  CircleHelp,
+  CircleMinus,
+  ClipboardList,
+  Footprints,
+  HeartHandshake,
+  Info,
+  Package,
+  Target,
+  UserRound,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 import { formatPrice } from "@/lib/site";
 import { Figure } from "@/components/ui/placeholder";
 import type {
@@ -29,11 +44,14 @@ function Section({
   eyebrow,
   children,
   tone = "plain",
+  icon: SectionIcon,
 }: {
   title: string;
   eyebrow?: string;
   children: React.ReactNode;
   tone?: "plain" | "cream";
+  /** 2026-11-18 減字：標題前的圖示；手機不再顯示英文／小字眉標 */
+  icon?: LucideIcon;
 }) {
   return (
     <section
@@ -44,9 +62,19 @@ function Section({
       }
     >
       {eyebrow && (
-        <p className="t-eyebrow text-brown-300">{eyebrow}</p>
+        <p className="t-eyebrow hidden text-brown-500 md:block">{eyebrow}</p>
       )}
-      <h2 className="t-h2 mt-[6px] text-brown-900">{title}</h2>
+      <h2 className="t-h2 flex items-center gap-[10px] text-brown-900 md:mt-[6px]">
+        {SectionIcon && (
+          <span
+            aria-hidden="true"
+            className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-full bg-cream-200 text-caramel-dk"
+          >
+            <SectionIcon strokeWidth={1.8} className="h-[22px] w-[22px]" />
+          </span>
+        )}
+        <span className="min-w-0">{title}</span>
+      </h2>
       <div className="mt-[18px] md:mt-[24px]">{children}</div>
     </section>
   );
@@ -55,11 +83,13 @@ function Section({
 /** 多段引言。後台的換行要保留，所以用 whitespace-pre-line。 */
 export function LeadText({ text }: { text: string | null | undefined }) {
   if (!text?.trim()) return null;
-  return (
+  const p = (
     <p className="t-body-lg whitespace-pre-line text-pretty text-brown-700">
       {text}
     </p>
   );
+  // 長引言手機先收起來（文字仍在頁面上，按「展開全文」就看得到）
+  return text.trim().length > 120 ? <ReadMore collapsedHeight={150}>{p}</ReadMore> : p;
 }
 
 /** 標題 + 條列。 */
@@ -68,21 +98,21 @@ export function BulletSection({
   eyebrow,
   items,
   tone,
+  icon = Target,
 }: {
   title: string;
   eyebrow?: string;
   items: readonly string[] | null | undefined;
   tone?: "plain" | "cream";
+  icon?: LucideIcon;
 }) {
   if (isEmpty(items)) return null;
   return (
-    <Section title={title} eyebrow={eyebrow} tone={tone}>
+    <Section title={title} eyebrow={eyebrow} tone={tone} icon={icon}>
       <ul className="flex flex-col gap-[12px]">
         {items!.map((item, i) => (
           <li key={i} className="t-body flex gap-[10px] text-brown-700">
-            <span aria-hidden className="shrink-0 text-caramel-dk">
-              ・
-            </span>
+            <Check aria-hidden="true" strokeWidth={2} className="mt-[0.3em] h-[18px] w-[18px] shrink-0 text-caramel-dk" />
             <span className="text-pretty">{item}</span>
           </li>
         ))}
@@ -102,6 +132,7 @@ export function CompareSection({
   leftItems,
   rightTitle,
   rightItems,
+  icon,
 }: {
   title: string;
   eyebrow?: string;
@@ -109,13 +140,14 @@ export function CompareSection({
   leftItems: readonly string[] | null | undefined;
   rightTitle: string;
   rightItems: readonly string[] | null | undefined;
+  icon?: LucideIcon;
 }) {
   const hasLeft = !isEmpty(leftItems);
   const hasRight = !isEmpty(rightItems);
   if (!hasLeft && !hasRight) return null;
 
   return (
-    <Section title={title} eyebrow={eyebrow}>
+    <Section title={title} eyebrow={eyebrow} icon={icon}>
       <div
         className={
           hasLeft && hasRight
@@ -155,9 +187,11 @@ function Column({
       <ul className="mt-[14px] flex flex-col gap-[10px]">
         {items.map((item, i) => (
           <li key={i} className="t-body flex gap-[10px] text-brown-700">
-            <span aria-hidden className="shrink-0 text-caramel-dk">
-              {tone === "ok" ? "✓" : "・"}
-            </span>
+            {tone === "ok" ? (
+              <Check aria-hidden="true" strokeWidth={2} className="mt-[0.3em] h-[18px] w-[18px] shrink-0 text-caramel-dk" />
+            ) : (
+              <CircleMinus aria-hidden="true" strokeWidth={1.8} className="mt-[0.3em] h-[18px] w-[18px] shrink-0 text-brown-500" />
+            )}
             <span className="text-pretty">{item}</span>
           </li>
         ))}
@@ -178,13 +212,14 @@ export function TagCloud({
 }) {
   if (isEmpty(items)) return null;
   return (
-    <Section title={title} eyebrow={eyebrow} tone="cream">
+    <Section title={title} eyebrow={eyebrow} tone="cream" icon={Package}>
       <ul className="flex flex-wrap gap-[10px]">
         {items!.map((item, i) => (
           <li
             key={i}
-            className="rounded-pill border border-sand-500 bg-white px-[18px] py-[9px] text-[17px] text-brown-700"
+            className="inline-flex items-center gap-[6px] rounded-pill border border-sand-500 bg-white px-[16px] py-[9px] text-[17px] text-brown-700"
           >
+            <Check aria-hidden="true" strokeWidth={2} className="h-[16px] w-[16px] shrink-0 text-caramel-dk" />
             {item}
           </li>
         ))}
@@ -203,7 +238,7 @@ export function FaqSection({ blocks }: { blocks: ProductBlock[] }) {
     .map((b) => ({ q: b.title!.trim(), a: (b.body ?? "").trim() }));
   if (items.length === 0) return null;
   return (
-    <Section eyebrow="常見問題" title="您想知道的，我們先回答">
+    <Section title="常見問題" icon={CircleHelp}>
       <Accordion items={items} />
     </Section>
   );
@@ -214,7 +249,7 @@ export function StepSection({ blocks }: { blocks: ProductBlock[] }) {
   const steps = blocks.filter((b) => b.title?.trim());
   if (steps.length === 0) return null;
   return (
-    <Section eyebrow="學習路徑" title="從理解、練習，到真正融入生活">
+    <Section eyebrow="學習路徑" title="從理解、練習，到融入生活" icon={Footprints}>
       <ol className="grid gap-[16px] md:grid-cols-2 lg:grid-cols-3">
         {steps.map((s, i) => (
           <li
@@ -242,7 +277,25 @@ export function InfoTableSection({ blocks }: { blocks: ProductBlock[] }) {
   const rows = blocks.filter((b) => b.title?.trim());
   if (rows.length === 0) return null;
   return (
-    <Section eyebrow="梯次、費用與報名" title="報名前，先確認這些資訊" tone="cream">
+    <Section eyebrow="梯次、費用與報名" title="報名前先確認" tone="cream" icon={ClipboardList}>
+      {/* 列很多時手機先收起來（文字都還在，按「看全部資訊」展開） */}
+      {rows.length > 4 ? (
+        <ReadMore collapsedHeight={420} moreLabel="看全部資訊" fadeFrom="from-cream-100">
+      <dl className="flex flex-col">
+          {rows.map((r) => (
+            <div
+              key={r.id}
+              className="grid gap-[4px] border-b border-sand-300 py-[14px] last:border-b-0 md:grid-cols-[200px_1fr] md:gap-[16px]"
+            >
+              <dt className="t-body font-medium text-brown-900">{r.title}</dt>
+              <dd className="t-body whitespace-pre-line text-pretty text-brown-700">
+                {r.body}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        </ReadMore>
+      ) : (
       <dl className="flex flex-col">
         {rows.map((r) => (
           <div
@@ -256,6 +309,7 @@ export function InfoTableSection({ blocks }: { blocks: ProductBlock[] }) {
           </div>
         ))}
       </dl>
+      )}
     </Section>
   );
 }
@@ -265,7 +319,7 @@ export function PricingSection({ blocks }: { blocks: ProductBlock[] }) {
   const plans = blocks.filter((b) => b.title?.trim());
   if (plans.length === 0) return null;
   return (
-    <Section eyebrow="費用" title="費用方案">
+    <Section title="費用方案" icon={Wallet}>
       <div className="grid gap-[16px] md:grid-cols-2">
         {plans.map((p) => {
           const amount = p.meta?.amount;
@@ -304,7 +358,7 @@ export function FeatureSection({ blocks }: { blocks: ProductBlock[] }) {
   const items = blocks.filter((b) => b.title?.trim());
   if (items.length === 0) return null;
   return (
-    <Section eyebrow="陪伴機制" title="讓您不會學完就一個人">
+    <Section eyebrow="陪伴機制" title="學完不會只剩你一個人" icon={HeartHandshake}>
       <div className="grid gap-[16px] md:grid-cols-3">
         {items.map((f) => (
           <div
@@ -337,7 +391,7 @@ export function TeacherSection({
   const links = (teacher.links ?? []).filter((l) => l?.href?.trim());
 
   return (
-    <Section eyebrow="認識您的學習引路人" title={`${teacher.name}｜${teacher.title}`}>
+    <Section eyebrow="認識您的學習引路人" title={`${teacher.name}｜${teacher.title}`} icon={UserRound}>
       <div className="flex flex-col gap-[20px] md:flex-row md:gap-[32px]">
         {teacher.photo_url && (
           <Figure
@@ -351,17 +405,20 @@ export function TeacherSection({
           />
         )}
         <div className="min-w-0 flex-1">
-          {paragraphs.map((p, i) => (
-            <p key={i} className="t-body mt-[10px] text-pretty text-brown-700 first:mt-0">
-              {p}
-            </p>
-          ))}
+          {/* 講師介紹手機先收起來，按「看完整介紹」展開 */}
+          <ReadMore collapsedHeight={200} moreLabel="看完整介紹">
+            {paragraphs.map((p, i) => (
+              <p key={i} className="t-body mt-[10px] text-pretty text-brown-700 first:mt-0">
+                {p}
+              </p>
+            ))}
+          </ReadMore>
 
           {credentials.length > 0 && (
             <ul className="mt-[18px] flex flex-col gap-[8px] border-t border-sand-300 pt-[16px]">
               {credentials.map((c, i) => (
                 <li key={i} className="t-body-sm flex gap-[10px] text-brown-500">
-                  <span aria-hidden className="shrink-0 text-caramel-dk">・</span>
+                  <Check aria-hidden="true" strokeWidth={2} className="mt-[0.3em] h-[16px] w-[16px] shrink-0 text-caramel-dk" />
                   <span>{c}</span>
                 </li>
               ))}
@@ -403,7 +460,10 @@ export function HealthNoticeSection({
   if (!notice?.body?.trim()) return null;
   return (
     <section className="rounded-card border-2 border-sand-400 px-[20px] py-[24px] md:px-[30px] md:py-[28px]">
-      <h2 className="t-h3 text-brown-900">{notice.title || "健康聲明"}</h2>
+      <h2 className="t-h3 flex items-center gap-[8px] text-brown-900">
+        <Info aria-hidden="true" strokeWidth={1.8} className="h-[22px] w-[22px] shrink-0 text-caramel-dk" />
+        {notice.title || "健康聲明"}
+      </h2>
       <p className="t-body mt-[12px] whitespace-pre-line text-pretty text-brown-700">
         {notice.body}
       </p>

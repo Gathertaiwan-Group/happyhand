@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Figure } from "@/components/ui/placeholder";
+import { ReadMore } from "@/components/ui/read-more";
 
 export type TeacherStat = { value: string; label: string };
 
@@ -45,13 +46,26 @@ export function TeacherFeature({
           {eyebrow && <p className="t-eyebrow text-caramel-ink">{eyebrow}</p>}
           <h2 className={`t-h2 ${eyebrow ? "mt-[12px]" : ""}`}>{heading}</h2>
 
-          <div className="mt-[14px] flex flex-col gap-[14px] md:mt-[20px] md:gap-[16px]">
-            {paragraphs.map((p) => (
-              <p key={p} className="t-body text-pretty text-brown-700">
-                {p}
-              </p>
-            ))}
-          </div>
+          {/* 手機只露出前幾行，其餘按「看完整介紹」展開（文字仍在 DOM 裡）。
+              只有一段時不收。 */}
+          {(() => {
+            const body = (
+              <div className="mt-[14px] flex flex-col gap-[14px] md:mt-[20px] md:gap-[16px]">
+                {paragraphs.map((p) => (
+                  <p key={p} className="t-body text-pretty text-brown-700">
+                    {p}
+                  </p>
+                ))}
+              </div>
+            );
+            return paragraphs.length > 1 ? (
+              <ReadMore collapsedHeight={220} moreLabel="看完整介紹">
+                {body}
+              </ReadMore>
+            ) : (
+              body
+            );
+          })()}
 
           {stats && stats.length > 0 && (
             <div className="mt-[20px] flex flex-wrap gap-x-[24px] gap-y-[14px] md:mt-[30px] md:gap-x-[40px]">

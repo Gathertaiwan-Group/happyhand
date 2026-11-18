@@ -1,6 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { SITE, NAV_LINKS } from "@/lib/site";
+import { Clock, MessageCircle } from "lucide-react";
+import { IconText } from "@/components/ui/icon-text";
 
 /**
  * Facebook 圖示。內嵌 SVG，維持全站「不裝 icon 套件」的慣例
@@ -111,12 +113,13 @@ export function SiteFooter() {
             rel="noopener noreferrer"
             className="mt-[12px] flex min-h-[56px] w-full items-center justify-center rounded-pill border-2 border-sand-400 text-[18px] text-brown-900 transition-colors duration-200 hover:bg-[#F5E7CE] md:w-auto md:px-[28px]"
           >
+            <MessageCircle aria-hidden="true" strokeWidth={1.8} className="mr-[8px] h-[20px] w-[20px] text-caramel-dk" />
             用 LINE 問我們
             <span className="sr-only">（會開啟 LINE）</span>
           </a>
           {/* CONTENT.md：說明文字最小 16px，所以這裡不用 t-micro(15px) */}
           <p className="t-caption mt-[14px] text-brown-500">
-            服務時間 週一至週五 10:00–18:00
+            <IconText icon={Clock} label="服務時間">週一至週五 10:00–18:00</IconText>
           </p>
 
           {/* 粉絲頁。同樣是站外連結，要自己帶 target/rel。

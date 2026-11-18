@@ -2,6 +2,15 @@
 
 import { Field } from "@/components/ui/field";
 import { validateInvoice, type CarrierType } from "@/lib/invoice/validate";
+import { Building2, Cloud, HeartHandshake, Smartphone, type LucideIcon } from "lucide-react";
+import { ICON_STROKE } from "@/components/ui/icon-text";
+
+const OPTION_ICON: Record<string, LucideIcon> = {
+  cloud: Cloud,
+  phone: Smartphone,
+  b2b: Building2,
+  love_code: HeartHandshake,
+};
 
 /**
  * 電子發票的載具與統編。
@@ -34,12 +43,12 @@ const OPTIONS: Option[] = [
   {
     value: "phone",
     label: "存到手機條碼",
-    desc: "有手機條碼載具的話填在這裡",
+    desc: "填手機條碼載具",
   },
   {
     value: "b2b",
     label: "公司報帳（要統編）",
-    desc: "開立三聯式發票，需要統一編號與公司抬頭",
+    desc: "三聯式，需統編與抬頭",
   },
   {
     value: "love_code",
@@ -119,7 +128,17 @@ export function InvoiceOptions({
                     }`}
                   />
                   <span className="min-w-0">
-                    <span className="block text-[17.5px] text-brown-900 md:text-[18.5px]">
+                    <span className="flex items-center gap-[8px] text-[17.5px] text-brown-900 md:text-[18.5px]">
+                      {(() => {
+                        const Icon = OPTION_ICON[opt.value];
+                        return Icon ? (
+                          <Icon
+                            aria-hidden="true"
+                            strokeWidth={ICON_STROKE}
+                            className="h-[20px] w-[20px] shrink-0 text-caramel-dk"
+                          />
+                        ) : null;
+                      })()}
                       {opt.label}
                     </span>
                     <span className="mt-[4px] block text-[16px] leading-[1.8] text-brown-500">
@@ -194,7 +213,7 @@ export function InvoiceOptions({
             自動開票已經移除（站上唯一的開票路徑是後台人工按），所以任何承諾
             都沒有人保證履行 —— 客人填了統編卻等不到發票，比沒問他更糟。
             欄位仍然照收：資料留著，要開的時候才有東西可以用。 */}
-        你填的統編或載具我們會一起存進訂單。發票的事請用 LINE 跟我們聯絡。
+        統編或載具會存進訂單。發票的事請用 LINE 跟我們聯絡。
       </p>
     </fieldset>
   );

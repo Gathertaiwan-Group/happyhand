@@ -7,43 +7,30 @@ import { CATEGORY_NAV_COUNT, NAV_LINKS, SITE } from "@/lib/site";
 import { useCart } from "@/components/cart-provider";
 import { lockBodyScroll } from "@/lib/scroll-lock";
 import { useHelper } from "@/components/ai/helper-provider";
+import {
+  BookOpen,
+  ChevronRight,
+  Info,
+  MessageCircle,
+  MonitorPlay,
+  Menu,
+  ShoppingCart,
+  Sparkles,
+  UserRound,
+  Users,
+  Video,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 
-/** 購物車圖示。維持專案「不裝 icon 套件」的作法，直接內嵌 SVG。 */
+/** 圖示一律 lucide-react（2026-11-18 起專案改用 icon 套件，全站同一套線條）。 */
 function CartIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden
-    >
-      <path d="M3 4h2l2.2 10.4a1.6 1.6 0 0 0 1.6 1.3h7.9a1.6 1.6 0 0 0 1.6-1.2L20 7H6" />
-      <circle cx="9.5" cy="19.5" r="1.4" />
-      <circle cx="17" cy="19.5" r="1.4" />
-    </svg>
-  );
+  return <ShoppingCart aria-hidden="true" strokeWidth={1.6} className={className} />;
 }
 
 /** 會員圖示。窄桌機（768–1279）放不下「我的學習」四個字時用它代替。 */
 function MemberIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden
-    >
-      <path d="M3 5.5A1.5 1.5 0 0 1 4.5 4H10a3 3 0 0 1 2 .8A3 3 0 0 1 14 4h5.5A1.5 1.5 0 0 1 21 5.5v12a1.5 1.5 0 0 1-1.5 1.5H14a2 2 0 0 0-2 1 2 2 0 0 0-2-1H4.5A1.5 1.5 0 0 1 3 17.5v-12ZM12 6.8V19" />
-    </svg>
-  );
+  return <BookOpen aria-hidden="true" strokeWidth={1.6} className={className} />;
 }
 
 function Wordmark({ heightClass }: { heightClass: string }) {
@@ -71,7 +58,15 @@ function Wordmark({ heightClass }: { heightClass: string }) {
  * 而它們是觸控裝置。原本這幾個連結只有 27px 高，手指很難點準。
  */
 /** 抽屜裡三類課程的一行說明，順序同 NAV_LINKS 前三項（預錄／直播／工作坊） */
-const CATEGORY_HINTS = ["買了永久回放，隨時看", "在家打開視訊跟著練", "跟老師面對面，小班制"];
+const CATEGORY_HINTS = ["永久回放", "在家視訊跟著練", "面對面小班"];
+/** 抽屜三類課程的圖示，順序同上（與首頁三類入口同一組意象） */
+const CATEGORY_ICONS: LucideIcon[] = [MonitorPlay, Video, Users];
+/** 其他導覽連結的圖示，依網址對應；對不到就不放圖示 */
+const LINK_ICONS: Record<string, LucideIcon> = {
+  "/about": Info,
+  "/teachers": UserRound,
+  "/faq": MessageCircle,
+};
 
 const navLinkClass =
   "flex min-h-[44px] items-center hover:text-caramel-dk";
@@ -210,17 +205,7 @@ export function SiteHeader() {
             aria-controls="mobile-menu"
             className="flex h-[44px] w-[44px] items-center justify-center rounded-input text-brown-700"
           >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-              className="h-[22px] w-[22px]"
-              aria-hidden
-            >
-              <path d="M4 7h16M4 12h16M4 17h16" />
-            </svg>
+            <Menu aria-hidden="true" strokeWidth={1.7} className="h-[22px] w-[22px]" />
           </button>
 
           <Link
@@ -275,17 +260,7 @@ export function SiteHeader() {
                 autoFocus
                 className="flex h-[44px] w-[44px] items-center justify-center rounded-input text-brown-700"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
-                  strokeLinecap="round"
-                  className="h-[22px] w-[22px]"
-                  aria-hidden
-                >
-                  <path d="M6 6l12 12M18 6L6 18" />
-                </svg>
+                <X aria-hidden="true" strokeWidth={1.7} className="h-[22px] w-[22px]" />
               </button>
             </div>
 
@@ -300,12 +275,23 @@ export function SiteHeader() {
                     <Link
                       href={l.href}
                       onClick={() => setOpen(false)}
-                      className="flex min-h-[64px] flex-col justify-center py-[8px] text-brown-900"
+                      className="flex min-h-[64px] items-center gap-[12px] py-[8px] text-brown-900"
                     >
-                      <span className="text-[19px] leading-[1.4] font-medium">{l.label}</span>
-                      <span className="text-[16px] leading-[1.5] text-brown-500">
-                        {CATEGORY_HINTS[i]}
+                      {(() => {
+                        const Icon = CATEGORY_ICONS[i];
+                        return Icon ? (
+                          <span className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-full bg-cream-200 text-caramel-dk">
+                            <Icon aria-hidden="true" strokeWidth={1.8} className="h-[21px] w-[21px]" />
+                          </span>
+                        ) : null;
+                      })()}
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="text-[19px] leading-[1.4] font-medium">{l.label}</span>
+                        <span className="text-[16px] leading-[1.5] text-brown-500">
+                          {CATEGORY_HINTS[i]}
+                        </span>
                       </span>
+                      <ChevronRight aria-hidden="true" strokeWidth={1.8} className="h-[18px] w-[18px] shrink-0 text-brown-500" />
                     </Link>
                   </li>
                 ))}
@@ -316,8 +302,14 @@ export function SiteHeader() {
                     <Link
                       href={l.href}
                       onClick={() => setOpen(false)}
-                      className="flex min-h-[58px] items-center text-[19px] text-brown-900"
+                      className="flex min-h-[58px] items-center gap-[10px] text-[19px] text-brown-900"
                     >
+                      {(() => {
+                        const Icon = LINK_ICONS[l.href];
+                        return Icon ? (
+                          <Icon aria-hidden="true" strokeWidth={1.8} className="h-[21px] w-[21px] text-brown-500" />
+                        ) : null;
+                      })()}
                       {l.label}
                     </Link>
                   </li>
@@ -326,8 +318,9 @@ export function SiteHeader() {
                   <Link
                     href="/account"
                     onClick={() => setOpen(false)}
-                    className="flex min-h-[58px] items-center text-[19px] text-brown-900"
+                    className="flex min-h-[58px] items-center gap-[10px] text-[19px] text-brown-900"
                   >
+                    <MemberIcon className="h-[21px] w-[21px] text-brown-500" />
                     {/* 用詞跟會員中心的標題對齊。全站有三個地方寫「我的課程」、
                         會員中心卻叫「我的學習」，長輩會以為是兩個不同的東西。 */}
                     我的學習
@@ -356,9 +349,7 @@ export function SiteHeader() {
                 塞一顆開對話框的按鈕語意不對。這一區本來就是「找不到要的東西？」，
                 AI 與真人是同一件事的兩條路，而且 shrink-0 永遠看得到、不用捲。 */}
             <div className="shrink-0 border-t border-sand-300 px-[20px] pt-[16px] pb-[calc(16px+env(safe-area-inset-bottom))]">
-              <p className="mb-[10px] text-[16px] text-brown-500">
-                找不到要的東西？這兩個都可以問
-              </p>
+              <p className="mb-[10px] text-[16px] text-brown-500">找不到？問我們</p>
               <div className="flex flex-col gap-[10px]">
                 {/* LINE 是實心主要鈕、小幫手是外框次要鈕：
                     這個客群信任的是真人，AI 是「趕時間可以先試」。 */}
@@ -366,8 +357,9 @@ export function SiteHeader() {
                   href={SITE.lineHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex min-h-[56px] items-center justify-center rounded-pill bg-caramel-ink text-[18px] text-white"
+                  className="flex min-h-[56px] items-center justify-center gap-[8px] rounded-pill bg-caramel-ink text-[18px] text-white"
                 >
+                  <MessageCircle aria-hidden="true" strokeWidth={1.8} className="h-[20px] w-[20px]" />
                   用 LINE 問我們
                   <span className="sr-only">（會開啟 LINE）</span>
                 </a>
@@ -381,9 +373,10 @@ export function SiteHeader() {
                       setOpen(false);
                       openHelper();
                     }}
-                    className="flex min-h-[56px] items-center justify-center rounded-pill border-2 border-sand-400 text-[18px] text-brown-900 transition-colors duration-200 hover:border-caramel-ink hover:text-caramel-dk"
+                    className="flex min-h-[56px] items-center justify-center gap-[8px] rounded-pill border-2 border-sand-400 text-[18px] text-brown-900 transition-colors duration-200 hover:border-caramel-ink hover:text-caramel-dk"
                   >
-                    問小幫手（馬上回答）
+                    <Sparkles aria-hidden="true" strokeWidth={1.8} className="h-[20px] w-[20px] text-caramel-dk" />
+                    問小幫手
                   </button>
                 )}
               </div>

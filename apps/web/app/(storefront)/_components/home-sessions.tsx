@@ -2,6 +2,8 @@
 
 import { Fragment, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { ChevronRight, Link2, Users, Video } from "lucide-react";
+import { ICON_CLASS, ICON_STROKE } from "@/components/ui/icon-text";
 import { NoSessions } from "@/app/(storefront)/workshops/_components/no-sessions";
 import {
   CATEGORY_HREF,
@@ -75,7 +77,7 @@ export function HomeSessions({
             className="-my-[10px] inline-flex min-h-[48px] items-center gap-[2px] text-[17px] text-brown-700 underline-offset-4 hover:text-caramel-dk hover:underline"
           >
             看全部{all.length > 0 ? ` ${all.length} 場` : ""}
-            <span aria-hidden="true">›</span>
+            <ChevronRight aria-hidden="true" strokeWidth={2} className="h-[18px] w-[18px]" />
           </Link>
         </div>
 
@@ -104,6 +106,11 @@ export function HomeSessions({
                     : "text-brown-900 hover:bg-cream-300",
                 ].join(" ")}
               >
+                {t === "live" ? (
+                  <Video aria-hidden="true" strokeWidth={ICON_STROKE} className="h-[20px] w-[20px] shrink-0" />
+                ) : (
+                  <Users aria-hidden="true" strokeWidth={ICON_STROKE} className="h-[20px] w-[20px] shrink-0" />
+                )}
                 {CATEGORY_LABEL[t]}
                 <span
                   className={`text-[16px] font-normal ${active ? "text-cream-200" : "text-brown-700"}`}
@@ -141,8 +148,9 @@ export function HomeSessions({
           )}
 
           {tab === "live" && hasOnlineSessions && all.length > 0 && (
-            <p className="mt-[12px] text-[16px] leading-[1.7] text-pretty text-brown-700">
-              線上直播的上課連結，會在開課前用 Email 或 LINE 傳給你。
+            <p className="mt-[12px] flex items-start gap-[6px] text-[16px] leading-[1.7] text-pretty text-brown-700">
+              <Link2 aria-hidden="true" strokeWidth={ICON_STROKE} className={`mt-[0.25em] ${ICON_CLASS}`} />
+              <span>直播連結會在開課前用 Email 或 LINE 傳給你。</span>
             </p>
           )}
         </div>

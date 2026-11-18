@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
+import { Check, Clock, Infinity as InfinityIcon } from "lucide-react";
 import { formatClock } from "@/components/account/youtube-api";
 import { LessonPlayer } from "./player";
 import { LessonContent } from "./lesson-content";
@@ -112,7 +113,7 @@ export function Classroom({
         ) : (
           <div className="mt-[20px] rounded-card bg-cream-100 px-[22px] py-[20px]">
             <p className="t-body text-brown-900">
-              這是最後一堂了。想再看一次的話，從右邊的清單挑一堂就好。
+              這是最後一堂了，想複習就從單元清單挑一堂。
             </p>
           </div>
         )}
@@ -155,7 +156,7 @@ export function Classroom({
                             : "border border-sand-400 text-brown-300"
                         }`}
                       >
-                        {isDone ? "✓" : index + 1}
+                        {isDone ? <Check strokeWidth={2.6} className="h-[18px] w-[18px]" /> : index + 1}
                       </span>
 
                       <span className="min-w-0 flex-1">
@@ -164,7 +165,11 @@ export function Classroom({
                         </span>
                         <span className="mt-[2px] flex flex-wrap items-center gap-x-[8px] text-[15px] text-brown-500">
                           {lesson.durationSec ? (
-                            <span>{formatClock(lesson.durationSec)}</span>
+                            <span className="inline-flex items-center gap-[4px]">
+                              <Clock aria-hidden="true" strokeWidth={1.8} className="h-[15px] w-[15px]" />
+                              <span className="sr-only">長度</span>
+                              {formatClock(lesson.durationSec)}
+                            </span>
                           ) : null}
                           {isDone && <span className="text-[#3f6b4a]">已上完</span>}
                           {!lesson.hasVideo && <span>影片準備中</span>}
@@ -178,7 +183,9 @@ export function Classroom({
           </div>
 
           <p className="t-body-sm mt-[16px] text-pretty text-brown-500">
-            {courseTitle}不限觀看次數，也沒有觀看期限。
+            <InfinityIcon aria-hidden="true" strokeWidth={1.8} className="mr-[6px] inline h-[18px] w-[18px] align-[-3px] text-caramel-dk" />
+            <span className="sr-only">{courseTitle}</span>
+            不限次數・沒有觀看期限。
             <Link href="/account" className="ml-[4px] text-caramel-dk hover:underline">
               回我的學習
             </Link>

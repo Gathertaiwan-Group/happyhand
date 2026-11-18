@@ -18,7 +18,9 @@ const OPTION_ICON: Record<string, LucideIcon> = {
  * 視覺與互動完全比照 PaymentOptions（同一組 radio 卡片、同樣的 2px 外框只換
  * 顏色、同樣的 ≥56px 高度），因為它們在畫面上是相鄰的兩區，長得不一樣會很怪。
  *
- * ⚠️ 選項刻意只有四個，而且「雲端發票」排第一個並且是預設。
+ * 🔴 2026-11-18：目前不開發票，選項文字只能說「記在訂單上」，不可承諾開立／捐出。
+ *
+ * ⚠️ 選項刻意只有四個，而且「雲端發票」（畫面上叫「不指定」）排第一個並且是預設。
  *    客群偏長輩，多數人不知道自己有沒有載具，也不想在結帳時被問。
  *    預設走雲端發票（存在 Amego，之後可以再歸戶）是最不打斷結帳的選擇，
  *    要載具的人自己會去點。
@@ -37,23 +39,23 @@ type Option = {
 const OPTIONS: Option[] = [
   {
     value: "cloud",
-    label: "雲端發票（預設）",
-    desc: "發票存雲端、不印紙本",
+    label: "不指定（預設）",
+    desc: "不用填任何資料",
   },
   {
     value: "phone",
-    label: "存到手機條碼",
-    desc: "填手機條碼載具",
+    label: "手機條碼載具",
+    desc: "把手機條碼記在訂單上",
   },
   {
     value: "b2b",
-    label: "公司報帳（要統編）",
-    desc: "三聯式，需統編與抬頭",
+    label: "公司統編",
+    desc: "把統編與公司抬頭記在訂單上",
   },
   {
     value: "love_code",
-    label: "捐給公益團體",
-    desc: "填愛心碼，發票直接捐出去",
+    label: "愛心碼",
+    desc: "把愛心碼記在訂單上",
   },
 ];
 
@@ -91,7 +93,7 @@ export function InvoiceOptions({
   return (
     <fieldset className="mt-[40px] m-0 border-0 p-0">
       <legend className="p-0 font-serif text-[22px] font-semibold text-brown-900 md:text-[28px]">
-        電子發票
+        發票資料
       </legend>
 
       <div className="mt-[20px] flex flex-col gap-[12px]">
@@ -199,7 +201,7 @@ export function InvoiceOptions({
                     value={value.title}
                     onChange={(v) => onChange({ ...value, title: v })}
                     error={showFor("title", value.title.length > 0)}
-                    hint="會印在發票上，請填公司的正式名稱。"
+                    hint="請填公司的正式名稱。"
                   />
                 </div>
               )}

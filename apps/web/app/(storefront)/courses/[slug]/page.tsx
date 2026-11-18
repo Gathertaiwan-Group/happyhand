@@ -270,15 +270,21 @@ export default async function CourseDetailPage({
                     >
                       {TEACHER.name}
                     </h2>
-                    {TEACHER.paragraphs.map((p, i) => (
-                      <p
-                        key={i}
-                        /* 手機只留第一段 */
-                        className={`mt-[10px] text-[16.5px] leading-[1.9] text-brown-500 md:text-[17.5px] md:leading-[1.95] ${i > 0 ? "hidden md:block" : ""}`}
-                      >
-                        {p}
-                      </p>
-                    ))}
+                    {/* 手機先收在第一段左右，按「看完整介紹」展開；文字都在 DOM、桌機全文 */}
+                    <ReadMore
+                      collapsedHeight={180}
+                      moreLabel="看完整介紹"
+                      fadeFrom="from-cream-100"
+                    >
+                      {TEACHER.paragraphs.map((p, i) => (
+                        <p
+                          key={i}
+                          className="mt-[10px] text-[16.5px] leading-[1.9] text-brown-500 md:text-[17.5px] md:leading-[1.95]"
+                        >
+                          {p}
+                        </p>
+                      ))}
+                    </ReadMore>
                   </div>
                 </div>
               </section>

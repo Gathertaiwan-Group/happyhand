@@ -110,6 +110,13 @@ export type OrderItemRow = {
   sessionId: string | null;
   unitPrice: number;
   qty: number;
+  /** 場次資訊（後台訂單頁「品項」區塊顯示的那幾項）。沒有場次是 null。 */
+  session: {
+    startsAt: string | null;
+    endsAt: string | null;
+    location: string | null;
+    address: string | null;
+  } | null;
 };
 
 export type OrderDetail = {
@@ -121,13 +128,28 @@ export type OrderDetail = {
   priceUnverified: boolean | null;
   paidAt: string | null;
   createdAt: string;
+  updatedAt: string | null;
   contactName: string | null;
   contactPhone: string | null;
   contactEmail: string | null;
+  /** 寄送地址（後台訂單頁「聯絡資訊」有顯示） */
+  shippingAddress: string | null;
+  /** 客人下單時的備註 */
+  note: string | null;
+  /** 綁定的會員帳號 id。給程式判斷用，MCP 不回傳給 AI。 */
+  userId: string | null;
+  /** 發票載具／統編（後台訂單頁「電子發票」區塊有顯示） */
+  invoiceRequest: {
+    carrierType: string | null;
+    carrierId: string | null;
+    taxId: string | null;
+    title: string | null;
+  };
   items: OrderItemRow[];
   invoice: {
     status: string;
     invoiceNumber: string | null;
+    randomCode: string | null;
     issuedAt: string | null;
     voidedAt: string | null;
     retryCount: number | null;
@@ -156,10 +178,11 @@ export async function loadOrderDetail(
   const { data, error } = await db
     .from("orders")
     .select(
-      "id, order_no, status, payment_method, total, price_unverified, paid_at, created_at," +
-        " contact_name, contact_phone, contact_email," +
-        " order_items(unit_price, qty, session_id, products(title))," +
-        " invoices(status, invoice_number, issued_at, voided_at, retry_count, last_error)",
+      "id, order_no, status, payment_method, total, price_unverified, paid_at, created_at, updated_at," +
+        " user_id, contact_name, contact_phone, contact_email, shipping_address, note," +
+        " invoice_carrier_type, invoice_carrier_id, invoice_tax_id, invoice_title," +
+        " order_items(unit_price, qty, session_id, products(title), workshop_sessions(starts_at, ends_at, location, address))," +
+        " invoices(status, invoice_number, random_code, issued_at, voided_at, retry_count, last_error)",
     )
     .eq(isUuid ? "id" : "order_no", key)
     .maybeSingle();
@@ -177,14 +200,26 @@ export async function loadOrderDetail(
   const pickOne = <T,>(value: T | T[] | null | undefined): T | null =>
     Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
 
-  const items = ((row.order_items ?? []) as Record<string, unknown>[]).map((it) => ({
-    productTitle:
-      (pickOne(it.products as { title: string } | { title: string }[] | null)?.title) ??
-      null,
-    sessionId: (it.session_id as string | null) ?? null,
-    unitPrice: Number(it.unit_price ?? 0),
-    qty: Number(it.qty ?? 0),
-  }));
+  type SessionEmbed = { starts_at: string | null; ends_at: string | null; location: string | null; address: string | null };
+  const items = ((row.order_items ?? []) as Record<string, unknown>[]).map((it) => {
+    const session = pickOne(it.workshop_sessions as SessionEmbed | SessionEmbed[] | null);
+    return {
+      productTitle:
+        (pickOne(it.products as { title: string } | { title: string }[] | null)?.title) ??
+        null,
+      sessionId: (it.session_id as string | null) ?? null,
+      unitPrice: Number(it.unit_price ?? 0),
+      qty: Number(it.qty ?? 0),
+      session: session
+        ? {
+            startsAt: session.starts_at ?? null,
+            endsAt: session.ends_at ?? null,
+            location: session.location ?? null,
+            address: session.address ?? null,
+          }
+        : null,
+    };
+  });
 
   const inv = pickOne(
     row.invoices as Record<string, unknown> | Record<string, unknown>[] | null,
@@ -199,14 +234,25 @@ export async function loadOrderDetail(
     priceUnverified: (row.price_unverified as boolean | null) ?? null,
     paidAt: (row.paid_at as string | null) ?? null,
     createdAt: String(row.created_at),
+    updatedAt: (row.updated_at as string | null) ?? null,
     contactName: (row.contact_name as string | null) ?? null,
     contactPhone: (row.contact_phone as string | null) ?? null,
     contactEmail: (row.contact_email as string | null) ?? null,
+    shippingAddress: (row.shipping_address as string | null) ?? null,
+    note: (row.note as string | null) ?? null,
+    userId: (row.user_id as string | null) ?? null,
+    invoiceRequest: {
+      carrierType: (row.invoice_carrier_type as string | null) ?? null,
+      carrierId: (row.invoice_carrier_id as string | null) ?? null,
+      taxId: (row.invoice_tax_id as string | null) ?? null,
+      title: (row.invoice_title as string | null) ?? null,
+    },
     items,
     invoice: inv
       ? {
           status: String(inv.status),
           invoiceNumber: (inv.invoice_number as string | null) ?? null,
+          randomCode: (inv.random_code as string | null) ?? null,
           issuedAt: (inv.issued_at as string | null) ?? null,
           voidedAt: (inv.voided_at as string | null) ?? null,
           retryCount: (inv.retry_count as number | null) ?? null,
@@ -214,4 +260,62 @@ export async function loadOrderDetail(
         }
       : null,
   };
+}
+
+/* ------------------------------------------------------ 綁定的帳號與已開通課程 */
+
+export type OrderAccountLink = {
+  /** 綁定帳號的登入 Email（可能跟訂單聯絡 Email 不同）。沒綁或讀不到是 null。 */
+  accountEmail: string | null;
+  /** 這張訂單開給這個帳號的課 */
+  entitlements: { productId: string; title: string; expiresAt: string | null }[];
+};
+
+/**
+ * 「訂單 → 帳號 → 已開通課程」這條鏈。後台訂單頁（loadAccountInfo）與 MCP 的 get_order 共用。
+ *
+ * 帳號 Email 用 getUserById 單筆查，不用 admin/staff 那支 loadUserEmailIndex()
+ * ——後者會把全站帳號掃一遍建索引，這裡只要一個人。
+ *
+ * 任何一步失敗都只記 log、回空值：這是輔助資訊，壞掉不該讓整頁（或整個工具）掛掉。
+ */
+export async function loadOrderAccountLink(
+  db: Db,
+  orderId: string,
+  userId: string | null,
+): Promise<OrderAccountLink> {
+  let accountEmail: string | null = null;
+  if (userId) {
+    const { data, error } = await db.auth.admin.getUserById(userId);
+    if (error) {
+      console.error("[admin/orders] 讀取帳號失敗", userId, error.message);
+    } else {
+      accountEmail = data.user?.email ?? null;
+    }
+  }
+
+  let entitlements: OrderAccountLink["entitlements"] = [];
+  if (userId) {
+    const { data, error } = await db
+      .from("entitlements")
+      .select("product_id, expires_at, products(title)")
+      .eq("user_id", userId)
+      .eq("order_id", orderId);
+
+    if (error) {
+      console.error("[admin/orders] 讀取開通紀錄失敗", orderId, error.message);
+    } else {
+      entitlements = (data ?? []).map((row) => {
+        const raw = row.products as { title: string | null } | { title: string | null }[] | null;
+        const product = Array.isArray(raw) ? (raw[0] ?? null) : (raw ?? null);
+        return {
+          productId: row.product_id as string,
+          title: product?.title ?? "（商品已刪除）",
+          expiresAt: (row.expires_at as string | null) ?? null,
+        };
+      });
+    }
+  }
+
+  return { accountEmail, entitlements };
 }

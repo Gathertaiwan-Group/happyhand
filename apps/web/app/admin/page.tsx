@@ -9,6 +9,13 @@ import { can } from "@/lib/admin/roles";
 import { createServiceClient } from "@/lib/supabase/server";
 import { DataList } from "@/components/admin/data-list";
 import { formatTaipei } from "@/components/admin/datetime-field";
+import {
+  loadCatalogStats,
+  loadHealthStats,
+  loadOrderStats,
+  loadUpcomingSessions,
+  type UpcomingSessionRow,
+} from "./dashboard-queries";
 
 /**
  * 後台總覽。
@@ -29,15 +36,7 @@ export const dynamic = "force-dynamic";
 
 type Db = ReturnType<typeof createServiceClient>;
 
-type SessionRow = {
-  id: string;
-  starts_at: string;
-  location: string | null;
-  capacity: number;
-  seats_taken: number;
-  status: string;
-  products: { title: string | null } | { title: string | null }[] | null;
-};
+type SessionRow = UpcomingSessionRow;
 
 const SESSION_STATUS_LABEL: Record<string, string> = {
   open: "開放報名",
@@ -274,153 +273,6 @@ export default async function AdminDashboardPage() {
       </Section>
     </div>
   );
-}
-
-/* ------------------------------------------------------------------ 查詢 */
-
-async function loadOrderStats(db: Db | null) {
-  const empty = { pending: 0, recentCount: 0, recentPaidTotal: 0, error: "" };
-  if (!db) return { ...empty, error: "資料庫連線未設定，請檢查伺服器環境變數。" };
-
-  try {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-    const [pending, recent] = await Promise.all([
-      db.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending"),
-      db.from("orders").select("total, status").gte("created_at", sevenDaysAgo),
-    ]);
-
-    // Supabase 查詢失敗不會 throw，錯誤在回傳值的 error 欄位。
-    // 不顯式檢查的話數字會永遠是 0 而沒人發現。
-    if (pending.error) throw new Error(pending.error.message);
-    if (recent.error) throw new Error(recent.error.message);
-
-    const rows = (recent.data ?? []) as { total: number; status: string }[];
-    return {
-      pending: pending.count ?? 0,
-      recentCount: rows.length,
-      recentPaidTotal: rows
-        .filter((row) => row.status === "paid")
-        .reduce((sum, row) => sum + (row.total ?? 0), 0),
-      error: "",
-    };
-  } catch (err) {
-    console.error("[admin] 訂單統計查詢失敗", err);
-    return { ...empty, error: "訂單統計讀取失敗。" };
-  }
-}
-
-/**
- * 兩個「有沒有人付了錢卻沒拿到東西」的指標。
- *
- * 查失敗時回 0 而不是顯示錯誤：這一區只在數字 > 0 時渲染，
- * 查不到就當作沒事，總覽的其他部分照常運作。失敗會進 log。
- */
-async function loadHealthStats(db: Db | null) {
-  const empty = {
-    unfulfilled: 0,
-    failedEmails: 0,
-    stuckInvoices: 0,
-    paymentAlerts: 0,
-    paymentUnverified: 0,
-  };
-  if (!db) return empty;
-
-  try {
-    const [unfulfilled, failed, invoices, payments, unverified] = await Promise.all([
-      db.rpc("count_unfulfilled_paid_orders"),
-      db
-        .from("email_outbox")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "failed"),
-      db.rpc("count_invoice_alerts"),
-      /*
-        付款異常。
-        ⚠️ count_payment_alerts() 從 20260817 就寫好了，但**沒有任何畫面呼叫它**，
-           所以「收到付款通知卻沒能把課開出去」這件事一直沒有人看得到 ——
-           而那正好是 APN 那幾個 bug 掉單時會留下的痕跡。這一行就是補上這個缺口。
-      */
-      db.rpc("count_payment_alerts"),
-      db.rpc("count_payment_unverified"),
-    ]);
-
-    if (unfulfilled.error) {
-      console.error("[admin] 未開通訂單查詢失敗", unfulfilled.error.message);
-    }
-    if (failed.error) {
-      console.error("[admin] 寄信失敗數查詢失敗", failed.error.message);
-    }
-
-    if (invoices.error) {
-      console.error("[admin] 發票異常查詢失敗", invoices.error.message);
-    }
-    if (payments.error) {
-      console.error("[admin] 付款異常查詢失敗", payments.error.message);
-    }
-    if (unverified.error) {
-      console.error("[admin] 未核對金額查詢失敗", unverified.error.message);
-    }
-
-    // RPC 回的是一列三個計數。三種都是「客人拿不到發票」，加總成一個數字就好 ——
-    // 客服要的是「有幾筆要看」，細節在訂單頁上。
-    const invRow = (Array.isArray(invoices.data) ? invoices.data[0] : invoices.data) as
-      | { pending_overdue?: number; stuck_issuing?: number; exhausted?: number }
-      | null;
-
-    return {
-      unfulfilled: typeof unfulfilled.data === "number" ? unfulfilled.data : 0,
-      failedEmails: failed.count ?? 0,
-      stuckInvoices:
-        Number(invRow?.pending_overdue ?? 0) +
-        Number(invRow?.stuck_issuing ?? 0) +
-        Number(invRow?.exhausted ?? 0),
-      paymentAlerts: typeof payments.data === "number" ? payments.data : 0,
-      paymentUnverified: typeof unverified.data === "number" ? unverified.data : 0,
-    };
-  } catch (err) {
-    console.error("[admin] 健康度統計查詢失敗", err);
-    return empty;
-  }
-}
-
-async function loadCatalogStats(db: Db | null) {
-  const empty = { published: 0, draft: 0, error: "" };
-  if (!db) return { ...empty, error: "資料庫連線未設定，請檢查伺服器環境變數。" };
-
-  try {
-    const [published, draft] = await Promise.all([
-      db.from("products").select("id", { count: "exact", head: true }).eq("is_published", true),
-      db.from("products").select("id", { count: "exact", head: true }).eq("is_published", false),
-    ]);
-    if (published.error) throw new Error(published.error.message);
-    if (draft.error) throw new Error(draft.error.message);
-
-    return { published: published.count ?? 0, draft: draft.count ?? 0, error: "" };
-  } catch (err) {
-    console.error("[admin] 課程統計查詢失敗", err);
-    return { ...empty, error: "課程統計讀取失敗。" };
-  }
-}
-
-async function loadUpcomingSessions(db: Db | null) {
-  const empty = { rows: [] as SessionRow[], error: "" };
-  if (!db) return { ...empty, error: "資料庫連線未設定，請檢查伺服器環境變數。" };
-
-  try {
-    const { data, error } = await db
-      .from("workshop_sessions")
-      .select("id, starts_at, location, capacity, seats_taken, status, products(title)")
-      .gt("starts_at", new Date().toISOString())
-      .in("status", ["open", "full"])
-      .order("starts_at", { ascending: true })
-      .limit(8);
-    if (error) throw new Error(error.message);
-
-    return { rows: (data ?? []) as SessionRow[], error: "" };
-  } catch (err) {
-    console.error("[admin] 場次查詢失敗", err);
-    return { ...empty, error: "場次讀取失敗。" };
-  }
 }
 
 /* ------------------------------------------------------------------ 版面 */

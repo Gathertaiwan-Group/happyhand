@@ -7,10 +7,11 @@ import {
   grantEntitlementsForOrder,
   revokeEntitlement,
 } from "@/lib/admin/entitlements";
-import { findOrCreateUser, generateSetupLink } from "@/lib/account/provision";
+import { generateSetupLink } from "@/lib/account/provision";
 import { enqueueEmail, flushOutbox } from "@/lib/email/outbox";
 import { accountSetupEmail, orderPaidEmail } from "@/lib/email/templates";
 import { createServiceClient } from "@/lib/supabase/server";
+import { rebindOrderAccountCore } from "./account-core";
 
 /**
  * 訂單的「會員帳號與課程開通」補救動作。
@@ -27,8 +28,6 @@ import { createServiceClient } from "@/lib/supabase/server";
 
 export type AccountActionResult = { error?: string | null; ok?: string | null };
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 /* ------------------------------------------------------- 綁定 / 修正 Email */
 
 /**
@@ -36,6 +35,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  *
  * 傳空字串代表「不改 Email，只是用現有的 contact_email 再綁一次」
  * （下單當時 Admin API 逾時的情況）。
+ *
+ * 本體在 ./account-core.ts（MCP 的 rebind_order_account 共用同一支），這裡只做
+ * 權限檢查與 FormData 轉換。
  */
 export async function rebindOrderAccount(
   orderId: string,
@@ -49,99 +51,7 @@ export async function rebindOrderAccount(
     return { error: adminErrorMessage(err) };
   }
 
-  const supabase = createServiceClient();
-
-  const { data: order, error: readError } = await supabase
-    .from("orders")
-    .select("id, order_no, status, user_id, contact_email, contact_name")
-    .eq("id", orderId)
-    .maybeSingle();
-
-  if (readError || !order) {
-    return { error: "找不到這筆訂單，請重新整理後再試。" };
-  }
-
-  const typed = String(formData.get("email") ?? "").trim().toLowerCase();
-  const nextEmail = typed || String(order.contact_email ?? "").trim().toLowerCase();
-
-  if (!nextEmail) {
-    return { error: "這筆訂單沒有 Email，請先填一個才能綁定帳號。" };
-  }
-  if (!EMAIL_RE.test(nextEmail)) {
-    return { error: "Email 格式看起來不太對，請再檢查一次。" };
-  }
-
-  const provisioned = await findOrCreateUser(
-    nextEmail,
-    String(order.contact_name ?? ""),
-  );
-  if (!provisioned) {
-    return {
-      error: "建立或查詢帳號失敗，訂單沒有被改動。請稍後再試一次；持續失敗請截圖回報。",
-    };
-  }
-
-  const previousUserId = order.user_id as string | null;
-
-  // 換帳號時要把已開通的課一起搬過去，否則客人登入新帳號還是看不到課。
-  // 先撤舊的再重發：entitlements 的 PK 是 (user_id, product_id)，
-  // 不撤的話舊帳號會永遠留著一份可以看的權限。
-  const movedFrom =
-    previousUserId && previousUserId !== provisioned.userId ? previousUserId : null;
-
-  if (movedFrom) {
-    const { data: old } = await supabase
-      .from("entitlements")
-      .select("product_id")
-      .eq("user_id", movedFrom)
-      .eq("order_id", orderId);
-    for (const row of old ?? []) {
-      await revokeEntitlement(movedFrom, row.product_id as string);
-    }
-  }
-
-  const { error: updateError } = await supabase
-    .from("orders")
-    .update({
-      user_id: provisioned.userId,
-      contact_email: nextEmail,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", orderId);
-
-  if (updateError) {
-    console.error("[admin/orders] 綁定帳號失敗", orderId, updateError.message);
-    return { error: "更新訂單失敗，資料沒有被改動。請重試一次。" };
-  }
-
-  // 已付款的訂單順手開通，客服不用再按第二顆按鈕
-  const grant =
-    order.status === "paid" ? await grantEntitlementsForOrder(orderId) : null;
-
-  await writeAudit(staff, {
-    action: "order.rebind_account",
-    entity: "order",
-    entityId: orderId,
-    summary:
-      `訂單 ${order.order_no} 綁定會員帳號 ${nextEmail}` +
-      (movedFrom ? "（從另一個帳號搬移）" : "") +
-      (grant?.ok ? `，開通線上課 ${grant.granted} 門` : ""),
-    diff: {
-      contact_email: { from: order.contact_email, to: nextEmail },
-      user_id: { from: previousUserId, to: provisioned.userId },
-    },
-  });
-
-  revalidatePath(`/admin/orders/${orderId}`);
-  revalidatePath("/admin/orders");
-
-  if (grant && !grant.ok) return { error: grant.warning };
-  return {
-    ok:
-      `已綁定 ${nextEmail}` +
-      (grant?.ok ? `，並開通了 ${grant.granted} 門課。` : "。") +
-      (provisioned.created ? "這是新建立的帳號，記得按「重寄設定密碼信」。" : ""),
-  };
+  return rebindOrderAccountCore(staff, orderId, String(formData.get("email") ?? ""));
 }
 
 /* --------------------------------------------------------------- 重新開通 */

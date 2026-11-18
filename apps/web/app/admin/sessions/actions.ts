@@ -14,6 +14,7 @@ import {
   type WaitlistStatus,
 } from "./queries";
 import { canTransitionSession, canTransitionWaitlist } from "./transitions";
+import { addWaitlistCore } from "./waitlist-core";
 
 /**
  * 場次報名管理的寫入動作。
@@ -208,61 +209,14 @@ export async function addWaitlistEntry(sessionId: string, formData: FormData): P
   try {
     const staff = await requireCapability("waitlist:write");
 
-    const name = String(formData.get("name") ?? "").trim();
-    const phone = String(formData.get("phone") ?? "").trim();
-    const email = String(formData.get("email") ?? "").trim();
-    const note = String(formData.get("note") ?? "").trim();
-
-    if (!name || !phone) {
-      outcome = "missing";
-    } else if (name.length > 60 || phone.length > 40) {
-      outcome = "toolong";
-    } else {
-      const db = createServiceClient();
-
-      const { data: session, error: sessionError } = await db
-        .from("workshop_sessions")
-        .select("id")
-        .eq("id", sessionId)
-        .maybeSingle();
-      if (sessionError || !session) {
-        outcome = "nosession";
-      } else {
-        const { data, error } = await db
-          .from("workshop_waitlist")
-          .insert({
-            session_id: sessionId,
-            name,
-            phone,
-            email: email || null,
-            note: note || null,
-            status: "waiting",
-            created_by: staff.id,
-          })
-          .select("id")
-          .maybeSingle();
-
-        if (error) {
-          // ⚠️ 只記 code 與 message，**不要**把 error 整包丟進 log。
-          // 這支的 insert payload 是姓名＋電話＋Email；Postgres 的 check / not-null
-          // 違規訊息會帶 `DETAIL: Failing row contains (…)`，PostgREST 會把它放進
-          // error.details 一路傳回來 —— 整包記下去等於把客人個資寫進 Vercel log。
-          console.error("[admin/sessions] 候補登記失敗", error.code, error.message);
-          outcome = "failed";
-        } else {
-          await writeAudit(staff, {
-            action: "waitlist.create",
-            entity: "waitlist",
-            entityId: (data as unknown as { id: string } | null)?.id ?? null,
-            // 稽核摘要留姓名是刻意的：這張表就是要回答「誰在什麼時候登記了誰」。
-            // 電話不放進 summary，需要時查 workshop_waitlist 本表。
-            summary: `候補登記：${name}`,
-            diff: { session_id: sessionId, has_email: Boolean(email), has_note: Boolean(note) },
-          });
-          revalidateSession(sessionId);
-        }
-      }
-    }
+    // 本體在 ./waitlist-core.ts（MCP 的 add_waitlist_entry 共用同一支）。
+    const result = await addWaitlistCore(staff, sessionId, {
+      name: String(formData.get("name") ?? ""),
+      phone: String(formData.get("phone") ?? ""),
+      email: String(formData.get("email") ?? ""),
+      note: String(formData.get("note") ?? ""),
+    });
+    outcome = result.outcome;
   } catch (err) {
     console.error("[admin/sessions] addWaitlistEntry 例外", err);
     // 只有真的是權限問題才說「你沒有權限」。

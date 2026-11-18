@@ -19,6 +19,7 @@ import {
 } from "@/components/admin/order-invoice-panel";
 import { OrderStatusChip } from "../status-chip";
 import { money, paymentMethodLabel } from "../shared";
+import { loadOrderAccountLink } from "../queries";
 
 /**
  * 訂單明細。
@@ -372,11 +373,8 @@ function PriceUnverifiedBanner({ total }: { total: number }) {
 /**
  * 蒐集「訂單 → 帳號 → 已開通課程」這條鏈的現況。
  *
- * 帳號 Email 用 getUserById 單筆查，不用 admin/staff 那支 loadUserEmailIndex()
- * ——後者會把全站帳號掃一遍建索引，這裡只要一個人。
- *
  * 任何一步失敗都只記 log 不炸頁：這個面板是輔助資訊，
- * 壞掉不該讓客服連「標記已收款」都按不了。
+ * 壞掉不該讓客服連「標記已收款」都按不了（見 ../queries.ts 的 loadOrderAccountLink）。
  */
 async function loadAccountInfo(
   supabase: ReturnType<typeof createServiceClient>,
@@ -385,39 +383,8 @@ async function loadAccountInfo(
 ): Promise<OrderAccountInfo> {
   const userId = (order as { user_id?: string | null }).user_id ?? null;
 
-  let accountEmail: string | null = null;
-  if (userId) {
-    const { data, error } = await supabase.auth.admin.getUserById(userId);
-    if (error) {
-      console.error("[admin/orders] 讀取帳號失敗", userId, error.message);
-    } else {
-      accountEmail = data.user?.email ?? null;
-    }
-  }
-
-  let entitlements: OrderAccountInfo["entitlements"] = [];
-  if (userId) {
-    const { data, error } = await supabase
-      .from("entitlements")
-      .select("product_id, expires_at, products(title)")
-      .eq("user_id", userId)
-      .eq("order_id", order.id);
-
-    if (error) {
-      console.error("[admin/orders] 讀取開通紀錄失敗", order.id, error.message);
-    } else {
-      entitlements = (data ?? []).map((row) => {
-        const product = one(
-          row.products as Embedded<{ title: string | null }>,
-        );
-        return {
-          productId: row.product_id as string,
-          title: product?.title ?? "（商品已刪除）",
-          expiresAt: (row.expires_at as string | null) ?? null,
-        };
-      });
-    }
-  }
+  // 帳號 Email 與已開通課程：與 MCP 的 get_order 共用 ../queries.ts 的同一支。
+  const { accountEmail, entitlements } = await loadOrderAccountLink(supabase, order.id, userId);
 
   // workshop 不發 entitlement（報名名單是從 order_items 即時算的），
   // 所以「該不該有開通紀錄」只看線上課與訂閱制的品項數。

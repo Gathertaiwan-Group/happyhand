@@ -87,18 +87,23 @@ const tables =
 test("工具清單：有新增／編輯，沒有任何刪除工具", () => {
   const names = [...tools.keys()].sort();
   assert.deepEqual(names, [
+    "add_lesson_material_from_url",
     "create_product",
     "create_session",
     "get_product",
+    "get_site_settings",
     "list_products",
+    "replace_lesson_material_from_url",
     "set_content_blocks",
     "set_lessons",
+    "update_health_notice",
     "update_product",
     "update_session",
+    "update_teacher_profile",
     "upload_image_base64",
     "upload_image_from_url",
   ]);
-  assert.equal(names.some((n) => n.includes("delete")), false);
+  assert.equal(names.some((n) => /delete|remove/.test(n)), false);
 });
 
 test("create_product 預覽：自動代稱、產生 key、不寫入、記 mcp.preview 稽核", async () => {

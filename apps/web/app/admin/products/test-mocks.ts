@@ -115,11 +115,17 @@ export function createServiceClient() {
 
 export type Op = {
   table: string;
-  kind: "select" | "insert" | "update" | "delete";
+  kind: "select" | "insert" | "update" | "delete" | "upsert";
   values?: unknown;
   filters: [string, string, unknown][];
   columns?: string;
+  /** maybeSingle()／single() 結尾的查詢（回一列，不是陣列） */
+  single?: boolean;
+  order?: [string, boolean][];
+  limit?: number;
 };
+
+export type StorageOp = { bucket: string; kind: "upload" | "remove"; path: string | string[] };
 
 export type Responder = (op: Op) => { data?: unknown; error?: { code?: string; message: string } | null };
 
@@ -130,8 +136,26 @@ export type Responder = (op: Op) => { data?: unknown; error?: { code?: string; m
  */
 export function fakeDb(responder: Responder, opts: { writesThrow?: boolean } = {}) {
   const log: Op[] = [];
+  const storageLog: StorageOp[] = [];
   const db = {
     log,
+    storageLog,
+    storage: {
+      from(bucket: string) {
+        return {
+          upload(path: string) {
+            if (opts.writesThrow) throw new Error(`預覽不該寫入：storage upload ${bucket}`);
+            storageLog.push({ bucket, kind: "upload", path });
+            return Promise.resolve({ data: { path }, error: null });
+          },
+          remove(paths: string[]) {
+            if (opts.writesThrow) throw new Error(`預覽不該寫入：storage remove ${bucket}`);
+            storageLog.push({ bucket, kind: "remove", path: paths });
+            return Promise.resolve({ data: null, error: null });
+          },
+        };
+      },
+    },
     from(table: string) {
       const op: Op = { table, kind: "select", filters: [] };
       const write = (kind: Op["kind"], values?: unknown) => {
@@ -153,6 +177,7 @@ export function fakeDb(responder: Responder, opts: { writesThrow?: boolean } = {
         insert: (v: unknown) => write("insert", v),
         update: (v: unknown) => write("update", v),
         delete: () => write("delete"),
+        upsert: (v: unknown) => write("upsert", v),
         eq(c: string, v: unknown) {
           op.filters.push(["eq", c, v]);
           return builder;
@@ -165,13 +190,20 @@ export function fakeDb(responder: Responder, opts: { writesThrow?: boolean } = {
           op.filters.push(["or", "", expr]);
           return builder;
         },
-        order() {
+        order(c: string, o?: { ascending?: boolean }) {
+          (op.order ??= []).push([c, o?.ascending !== false]);
           return builder;
         },
-        limit() {
+        limit(n: number) {
+          op.limit = n;
           return builder;
         },
         maybeSingle() {
+          op.single = true;
+          return Promise.resolve(finish());
+        },
+        single() {
+          op.single = true;
           return Promise.resolve(finish());
         },
         then(resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) {

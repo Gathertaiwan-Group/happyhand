@@ -1,17 +1,13 @@
 import { NextResponse } from "next/server";
-import { randomUUID } from "node:crypto";
 import { checkCapability } from "@/lib/admin/guard";
 import { writeAudit } from "@/lib/admin/audit";
 import { createServiceClient } from "@/lib/supabase/server";
+import { addLessonMaterial } from "@/lib/admin/lesson-material-store";
 import {
   MATERIALS_BUCKET,
   MATERIAL_KIND_LABELS,
   MATERIAL_MAX_BYTES,
-  MATERIAL_MAX_PER_LESSON,
-  MATERIAL_MIME,
-  extForMime,
   isMaterialKind,
-  materialObjectPath,
   type MaterialKind,
 } from "@/lib/admin/materials";
 
@@ -66,88 +62,28 @@ export async function POST(request: Request) {
 
   const file = form.get("file");
   if (!(file instanceof File)) return fail("沒有收到檔案，請重新選擇。", 400);
-  if (file.size === 0) return fail("這個檔案是空的，請換一個再試。", 400);
+  // 大小在讀進記憶體之前先擋一次（核心函式會再擋一次，訊息相同）
   if (file.size > MATERIAL_MAX_BYTES) {
     return fail("檔案太大，單檔上限 20MB。", 413);
-  }
-  if (!MATERIAL_MIME[kind].includes(file.type)) {
-    return fail(
-      kind === "file"
-        ? "課程文件目前只收 PDF。Word 或 PowerPoint 請先另存成 PDF 再上傳。"
-        : "圖片格式需為 JPEG、PNG 或 WebP。",
-      400,
-    );
   }
 
   const db = createServiceClient();
   if (!db) return fail("儲存服務暫時無法使用，請稍後再試。", 503);
 
-  // 這一堂真的存在嗎（也順便擋掉亂送 lesson_id）
-  const { data: lesson } = await db
-    .from("course_lessons")
-    .select("id, title")
-    .eq("id", lessonId)
-    .maybeSingle();
-  if (!lesson) return fail("找不到這個單元，請重新整理後再試一次。", 404);
-
-  const { data: existing } = await db
-    .from("lesson_materials")
-    .select("sort_order")
-    .eq("lesson_id", lessonId)
-    .eq("kind", kind)
-    .order("sort_order", { ascending: false })
-    .limit(1);
-
-  const nextSort = ((existing?.[0]?.sort_order as number | undefined) ?? 0) + 1;
-  if (nextSort > MATERIAL_MAX_PER_LESSON) {
-    return fail(`一堂課最多 ${MATERIAL_MAX_PER_LESSON} 份，請先移除用不到的。`, 400);
-  }
-
-  const id = randomUUID();
-  const path = materialObjectPath(lessonId, id, extForMime(file.type));
-
-  const { error: upErr } = await db.storage
-    .from(MATERIALS_BUCKET)
-    .upload(path, Buffer.from(await file.arrayBuffer()), {
-      contentType: file.type,
-      upsert: false,
-    });
-  if (upErr) {
-    console.error("[admin/materials] 存檔失敗", upErr.message);
-    return fail("檔案存不進去，請重試一次。", 500);
-  }
-
-  const { data: row, error: insErr } = await db
-    .from("lesson_materials")
-    .insert({
-      id,
-      lesson_id: lessonId,
+  // 驗證、存檔、建資料列、稽核都在 lib/admin/lesson-material-store.ts（MCP 也走同一支）
+  const r = await addLessonMaterial(
+    { db, staff, audit: writeAudit },
+    {
+      lessonId,
       kind,
-      storage_path: path,
-      // 原始檔名只拿來顯示。截長度避免有人用超長檔名撐爆後台版面。
-      file_name: (file.name || "未命名").slice(0, 200),
-      mime_type: file.type,
-      size_bytes: file.size,
-      sort_order: nextSort,
-    })
-    .select("id, kind, file_name, mime_type, size_bytes, caption, sort_order")
-    .single();
+      bytes: Buffer.from(await file.arrayBuffer()),
+      mime: file.type,
+      fileName: file.name,
+    },
+  );
+  if (!r.ok) return fail(r.message, r.status);
 
-  if (insErr || !row) {
-    // 資料列建不起來就把檔案收回去，不要在 bucket 裡留孤兒。
-    await db.storage.from(MATERIALS_BUCKET).remove([path]);
-    console.error("[admin/materials] 建立資料失敗", insErr?.message);
-    return fail("儲存失敗，請重試一次。", 500);
-  }
-
-  await writeAudit(staff, {
-    action: "lesson.material_added",
-    entity: "lesson_materials",
-    entityId: row.id,
-    summary: `為單元「${lesson.title}」新增${MATERIAL_KIND_LABELS[kind]}：${row.file_name}`,
-  });
-
-  return NextResponse.json({ material: row }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ material: r.material }, { headers: { "Cache-Control": "no-store" } });
 }
 
 /* ------------------------------------------------------------------ 刪除 */

@@ -4,7 +4,7 @@ import Image from "next/image";
 import { LinkButton } from "@/components/ui/button";
 import { Figure } from "@/components/ui/placeholder";
 import { MobileActionBar } from "@/components/mobile-action-bar";
-import { REASONS, TEACHER } from "@/lib/content";
+import { REASONS, TEACHER, detailHrefMap } from "@/lib/content";
 import {
   getProducts,
   getSiteSetting,
@@ -68,11 +68,10 @@ export default async function HomePage() {
   ]);
   const courses = all.filter((p) => p.type === "course");
 
-  // 只有 type=workshop 的商品有單場詳情頁。讀脈入門課是 course 卻掛著實體場次，
-  // 它的標題不能連到 /workshops/[slug]，否則是 404。與 /workshops 列表頁同一套判斷。
-  const workshopSlugs = new Set(
-    all.filter((p) => p.type === "workshop").map((p) => p.slug),
-  );
+  // 場次列的標題與「我要報名」要連到這門課自己的介紹頁。
+  // workshop 走 /workshops/[slug]，course（讀脈入門課就是 course 卻掛著實體場次）
+  // 走 /courses/[slug] —— 以前這裡只認 workshop，讀脈那一列就只能直接進購物車。
+  const detailHrefs = detailHrefMap(all);
 
   // 「新開」：場次建立 NEW_DAYS 天內。用 render 當下的時間算 —— 頁面是 ISR，
   // 最多晚五分鐘（加上 stale-while-revalidate 的那一位訪客）才翻過去，夠用。
@@ -91,7 +90,7 @@ export default async function HomePage() {
           isNew={isNew}
           showProductName
           compact
-          detailHref={workshopSlugs.has(s.slug) ? `/workshops/${s.slug}` : null}
+          detailHref={detailHrefs.get(s.slug) ?? null}
         />
       ),
     };

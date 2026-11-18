@@ -256,3 +256,32 @@ export const FAQS = [
 export function findProduct(slug: string) {
   return PRODUCTS.find((p) => p.slug === slug) ?? null;
 }
+
+/**
+ * 這個商品自己的介紹頁網址。沒有介紹頁的回 null。
+ *
+ * 場次列（首頁與 /workshops）的「我要報名」要先帶人來這裡，不是直接進購物車。
+ * 判斷依型態，不是依 slug：
+ *   workshop     → /workshops/[slug]（有場次與報名區）
+ *   course       → /courses/[slug]（讀脈入門課就是 course 卻掛著實體場次）
+ *   subscription → 沒有場次，也沒有自己的詳情頁，回 null
+ */
+export function productDetailHref(
+  product: Pick<Product, "type" | "slug">,
+): string | null {
+  if (product.type === "workshop") return `/workshops/${product.slug}`;
+  if (product.type === "course") return `/courses/${product.slug}`;
+  return null;
+}
+
+/** slug → 介紹頁網址。場次只有 slug，查不到商品時回 null。 */
+export function detailHrefMap(
+  products: Pick<Product, "type" | "slug">[],
+): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const p of products) {
+    const href = productDetailHref(p);
+    if (href) m.set(p.slug, href);
+  }
+  return m;
+}

@@ -11,6 +11,7 @@ import {
 } from "./_components/workshops-browser";
 import { hasOnline } from "@/lib/session-format";
 import { sessionCategories } from "@/lib/course-category";
+import { detailHrefMap } from "@/lib/content";
 
 /** 與 /courses 一致的 ISR 週期。後台改動仍靠 revalidatePath 立即生效，
  *  這個值只是「就算沒人呼叫 revalidate，最久也就過期五分鐘」的保底。 */
@@ -35,10 +36,9 @@ export default async function WorkshopsPage() {
     getProducts(),
   ]);
 
-  // 只有 type=workshop 的商品才有單場詳情頁，其餘（例如讀脈入門課的實體班）標題不做連結，避免連到 404
-  const workshopSlugs = new Set(
-    products.filter((p) => p.type === "workshop").map((p) => p.slug),
-  );
+  // 場次列的標題與「我要報名」連到這門課自己的介紹頁：workshop 走 /workshops/[slug]，
+  // course（例如讀脈入門課的實體班）走 /courses/[slug]。查不到的留 null，CTA 退回加入購物車。
+  const detailHrefs = detailHrefMap(products);
 
   const browserProps = {
     hasOnlineSessions: sessions.some((s) => hasOnline(s.format)),
@@ -51,9 +51,7 @@ export default async function WorkshopsPage() {
           <SessionRow
             key={key}
             session={s}
-            detailHref={
-              workshopSlugs.has(s.slug) ? `/workshops/${s.slug}` : null
-            }
+            detailHref={detailHrefs.get(s.slug) ?? null}
           />
         ),
       };

@@ -186,6 +186,11 @@ export type WorkshopRow = {
    * ——那一頁是刻意保持靜態的。
    */
   asksIntake: boolean;
+  /**
+   * 場次建立時間（workshop_sessions.created_at）。首頁拿來標「新開」——
+   * 判斷「新」看的是這一場什麼時候排出來的，不是開課日期。
+   */
+  createdAt: string | null;
 };
 
 export async function getWorkshopSessions(): Promise<WorkshopRow[]> {
@@ -259,6 +264,7 @@ export async function getWorkshopSessions(): Promise<WorkshopRow[]> {
       seats_taken: s.seats_taken,
       held: holds.get(s.id) ?? 0,
       asksIntake: Boolean(s.products.asks_intake),
+      createdAt: s.created_at ?? null,
     }));
   } catch (err) {
     console.error("[data] getWorkshopSessions 例外", err);

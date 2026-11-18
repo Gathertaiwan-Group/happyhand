@@ -100,7 +100,10 @@ export async function catalogText(): Promise<string> {
     const m = month.replace(/\s+/g, "").replace(/月+$/, "月");
     const d = day.replace(/日+$/, "");
     const remaining = Math.max(0, s.capacity - s.seats_taken - (s.held ?? 0));
-    const name = s.sessionTitle?.trim() || s.title;
+    // 梯次名稱（例如「初階（第 1–4 堂）」）單獨出現時看不出是哪一門課，前面補上課名
+    const name = s.sessionTitle?.trim()
+      ? `${s.title}・${s.sessionTitle.trim()}`
+      : s.title;
     return (
       `・${name}｜${m}${d}日（${weekday}）${timeRange(s.starts_at, s.ends_at)}` +
       // 線上場次印「線上上課」而不是 location（可能是「ON LINE」或空的）。

@@ -12,7 +12,10 @@ import {
   type TeacherSetting,
 } from "@/lib/data";
 import { SITE, formatPrice } from "@/lib/site";
-import { HomeWorkshops } from "./_components/home-workshops";
+import { HomeSessions } from "./_components/home-sessions";
+import { SessionRow } from "./workshops/_components/session-row";
+import { hasOnline } from "@/lib/session-format";
+import { CATEGORY_HREF, sessionCategories } from "@/lib/course-category";
 
 /**
  * 首頁 /
@@ -24,7 +27,7 @@ import { HomeWorkshops } from "./_components/home-workshops";
 export const metadata: Metadata = {
   // title 沿用 layout 的預設值（首頁不套 "%s｜快樂手" 模板）
   description:
-    "快樂手是柳樺老師的仁神術（JSJ）練習。每天十分鐘、坐著也能做、有人陪著練；線上課程與台北實體工作坊，把手放在自己身上，慢慢把緊繃的地方鬆開。",
+    "快樂手是柳樺老師的仁神術（JSJ）練習。每天十分鐘、坐著也能做、有人陪著練；預錄課程、線上直播與線下工作坊，把手放在自己身上，慢慢把緊繃的地方鬆開。",
   alternates: { canonical: "/" },
 };
 
@@ -44,6 +47,12 @@ const HOME_COURSE_SLUGS: { slug: string; hideOnMobile?: boolean }[] = [
   { slug: "jsj-beginner", hideOnMobile: true },
   { slug: "main-central-flow" },
 ];
+
+/**
+ * 場次建立幾天內算「新開」。看的是 workshop_sessions.created_at（這一場什麼時候排出來），
+ * 不是開課日期 —— 兩個月後才開的課，昨天剛排出來，對學生來說就是新的。
+ */
+const NEW_DAYS = 14;
 
 /** footerLine 內的 LINE ID 要能直接點開，把字串切成「前段 / LINE ID / 後段」 */
 const [footerLineBeforeLine, footerLineAfterLine] = SITE.footerLine.split(
@@ -65,6 +74,28 @@ export default async function HomePage() {
     all.filter((p) => p.type === "workshop").map((p) => p.slug),
   );
 
+  // 「新開」：場次建立 NEW_DAYS 天內。用 render 當下的時間算 —— 頁面是 ISR，
+  // 最多晚五分鐘（加上 stale-while-revalidate 的那一位訪客）才翻過去，夠用。
+  const newSince = Date.now() - NEW_DAYS * 24 * 60 * 60 * 1000;
+  const sessionItems = sessions.map((s) => {
+    const key = s.id ?? `${s.slug}-${s.starts_at}`;
+    const isNew = s.createdAt ? Date.parse(s.createdAt) >= newSince : false;
+    return {
+      key,
+      cats: sessionCategories(s.format),
+      isNew,
+      node: (
+        <SessionRow
+          key={key}
+          session={s}
+          isNew={isNew}
+          showProductName
+          detailHref={workshopSlugs.has(s.slug) ? `/workshops/${s.slug}` : null}
+        />
+      ),
+    };
+  });
+
   const picked = HOME_COURSE_SLUGS.flatMap(({ slug, hideOnMobile }) => {
     const product = courses.find((p) => p.slug === slug);
     return product ? [{ product, hideOnMobile: Boolean(hideOnMobile) }] : [];
@@ -81,14 +112,18 @@ export default async function HomePage() {
 
   return (
     <div className="pb-action-bar">
-      {/* ── 1. Hero ── 設計稿 L41–54（桌機）／L135–146（手機） */}
+      {/* ── 1. Hero（縮短版）── 設計稿 L41–54（桌機）／L135–146（手機）
+          2026-11-18 業主要「學生一上來就看到線上直播與線下工作坊」：
+          主視覺縮短（墨圈縮小、桌機標題一行、拿掉兩顆按鈕），讓下一段
+          「近期開課」進到手機 390×844 的第一屏。按鈕原本就是帶去課程與場次，
+          場次現在就在正下方，預錄課程在下一段，不需要再重複。 */}
       <section
         aria-labelledby="hero-title"
-        className="relative overflow-hidden px-[22px] pt-[40px] pb-[52px] text-center md:px-[40px] md:pt-[86px] md:pb-[92px]"
+        className="relative overflow-hidden px-[22px] pt-[20px] pb-[22px] text-center md:px-[40px] md:pt-[40px] md:pb-[36px]"
       >
         <div
           aria-hidden="true"
-          className="halo-bg pointer-events-none absolute top-[10px] left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full md:top-[30px] md:h-[660px] md:w-[660px]"
+          className="halo-bg pointer-events-none absolute top-[-60px] left-1/2 h-[340px] w-[340px] -translate-x-1/2 rounded-full md:top-[-120px] md:h-[520px] md:w-[520px]"
         />
         <div className="relative mx-auto max-w-maxw">
           {/* 品牌標記。logo-mark.png 是去背過的墨圈，四周留了 6% 白邊，
@@ -99,64 +134,27 @@ export default async function HomePage() {
             width={691}
             height={691}
             priority
-            sizes="(min-width: 768px) 210px, 140px"
-            className="mx-auto h-[140px] w-[140px] md:h-[210px] md:w-[210px]"
+            sizes="(min-width: 768px) 88px, 60px"
+            className="mx-auto h-[60px] w-[60px] md:h-[88px] md:w-[88px]"
           />
-          <h1 id="hero-title" className="t-h1 pt-[26px] md:pt-[38px]">
+          <h1 id="hero-title" className="t-h1 pt-[10px] md:pt-[14px]">
             身體會記得
-            <br />
+            <br className="md:hidden" />
             被好好對待的感覺
           </h1>
-          <p className="t-body-lg mx-auto mt-[18px] max-w-[640px] text-pretty text-brown-500 md:mt-[26px]">
-            快樂手是柳樺老師的仁神術（JSJ）練習。不需要體力、不需要器材，把手放在自己身上，慢慢把緊繃的地方鬆開。
+          <p className="t-body mx-auto mt-[6px] max-w-[640px] text-pretty text-brown-500 md:mt-[10px] md:max-w-[880px]">
+            柳樺老師的仁神術（JSJ）練習。不需要體力、不需要器材，把手放在自己身上，慢慢把緊繃的地方鬆開。
           </p>
-          <div className="mt-[24px] flex flex-col gap-[10px] md:mt-[38px] md:flex-row md:justify-center md:gap-[16px]">
-            <LinkButton
-              href="/courses"
-              variant="primary"
-              size="lg"
-              className="w-full md:w-auto"
-            >
-              開始線上練習
-            </LinkButton>
-            <LinkButton
-              href="/workshops"
-              variant="outline"
-              size="lg"
-              className="w-full md:w-auto"
-            >
-              預約直播或工作坊
-            </LinkButton>
-          </div>
         </div>
       </section>
 
-      {/* ── 2. 三項理由 ── 設計稿 L56–72（桌機）／L147–163（手機） */}
-      <section aria-label="快樂手的三個特點" className="border-t border-sand-300">
-        <ul className="mx-auto max-w-maxw md:grid md:grid-cols-3">
-          {REASONS.map((reason, i) => (
-            <li
-              key={reason.no}
-              className={`border-b border-sand-300 px-[24px] py-[30px] text-center md:border-b-0 md:px-[40px] md:py-[52px] ${
-                i < REASONS.length - 1 ? "md:border-r md:border-sand-300" : ""
-              }`}
-            >
-              <span
-                aria-hidden="true"
-                className="block font-serif text-[28px] text-caramel-ink md:text-[36px]"
-              >
-                {reason.no}
-              </span>
-              <h2 className="t-h3 pt-[8px] md:pt-[14px]">{reason.title}</h2>
-              <p className="t-body-sm mt-[8px] text-pretty text-brown-500 md:mt-[12px]">
-                {reason.desc}
-              </p>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {/* ── 2. 近期開課（線上直播／線下工作坊）── 緊接主視覺，第一屏就要看得到 */}
+      <HomeSessions
+        items={sessionItems}
+        hasOnlineSessions={sessions.some((s) => hasOnline(s.format))}
+      />
 
-      {/* ── 3. 課程卡 ── 設計稿 L74–105（桌機）／L164–184（手機）
+      {/* ── 3. 預錄課程卡 ── 設計稿 L74–105（桌機）／L164–184（手機）
           一門課都沒有時整段不渲染：留一個「從哪一堂開始都可以」配空白格
           比直接不出現還糟。 */}
       {HOME_COURSES.length > 0 && (
@@ -166,10 +164,13 @@ export default async function HomePage() {
       >
         <div className="mx-auto max-w-[1080px]">
           <div className="text-center">
-            <p className="t-eyebrow text-caramel-ink">COURSES</p>
+            <p className="t-eyebrow text-caramel-ink">RECORDED COURSES</p>
             <h2 id="courses-title" className="t-h2 pt-[8px] md:pt-[12px]">
-              從哪一堂開始都可以
+              預錄課程，從哪一堂開始都可以
             </h2>
+            <p className="t-body mx-auto mt-[10px] max-w-[620px] text-pretty text-brown-500">
+              買了就能永久回放，不用配合時間，在家慢慢練。
+            </p>
           </div>
 
           <ul className="mt-[22px] grid gap-[14px] md:mt-[40px] md:grid-cols-2 md:gap-[24px] lg:grid-cols-3">
@@ -226,17 +227,46 @@ export default async function HomePage() {
               );
             })}
           </ul>
+
+          <div className="mt-[20px] text-center md:mt-[32px]">
+            <LinkButton
+              href={CATEGORY_HREF.recorded}
+              variant="outline"
+              className="w-full md:w-auto"
+            >
+              看全部預錄課程
+            </LinkButton>
+          </div>
         </div>
       </section>
       )}
 
-      {/* ── 3.5 工作坊 ── 設計稿沒有這一段，是後來補的。
-          放在課程與老師之間：線上課是低門檻入口，工作坊是更高的承諾，
-          而且它有「特定日期 + 剩幾位」這種線上課沒有的具體性。
-          先讓人看到具體的東西，再用老師那段收信任。 */}
-      <HomeWorkshops sessions={sessions} workshopSlugs={workshopSlugs} />
+      {/* ── 4. 三項理由 ──（原本在主視覺下面，讓位給近期開課） 設計稿 L56–72（桌機）／L147–163（手機） */}
+      <section aria-label="快樂手的三個特點" className="border-t border-sand-300">
+        <ul className="mx-auto max-w-maxw md:grid md:grid-cols-3">
+          {REASONS.map((reason, i) => (
+            <li
+              key={reason.no}
+              className={`border-b border-sand-300 px-[24px] py-[30px] text-center md:border-b-0 md:px-[40px] md:py-[52px] ${
+                i < REASONS.length - 1 ? "md:border-r md:border-sand-300" : ""
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className="block font-serif text-[28px] text-caramel-ink md:text-[36px]"
+              >
+                {reason.no}
+              </span>
+              <h2 className="t-h3 pt-[8px] md:pt-[14px]">{reason.title}</h2>
+              <p className="t-body-sm mt-[8px] text-pretty text-brown-500 md:mt-[12px]">
+                {reason.desc}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </section>
 
-      {/* ── 4. 老師 ── 設計稿 L107–118（桌機；手機稿未收錄本區，改上下堆疊） */}
+      {/* ── 5. 老師 ── 設計稿 L107–118（桌機；手機稿未收錄本區，改上下堆疊） */}
       <section
         aria-labelledby="teacher-title"
         className="mx-auto grid max-w-[1100px] gap-[28px] px-[20px] py-[40px] md:grid-cols-[0.85fr_1.15fr] md:items-center md:gap-[56px] md:px-[40px] md:py-[80px]"
@@ -275,7 +305,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ── 5. Footer CTA 帶 ── 設計稿 L120–123 */}
+      {/* ── 6. Footer CTA 帶 ── 設計稿 L120–123 */}
       <section
         aria-labelledby="contact-title"
         className="bg-caramel px-[20px] py-[40px] text-center text-white md:px-[40px] md:py-[64px]"
@@ -304,8 +334,8 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ── 6. 手機固定行動列 ── 設計稿 L185–188 */}
-      <MobileActionBar href="/courses" label="開始線上練習" />
+      {/* ── 7. 手機固定行動列 ── 設計稿 L185–188 */}
+      <MobileActionBar href={CATEGORY_HREF.recorded} label="看預錄課程" />
     </div>
   );
 }

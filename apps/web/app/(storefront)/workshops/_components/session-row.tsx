@@ -21,12 +21,21 @@ export function SessionRow({
   session,
   detailHref,
   showTitle = true,
+  isNew = false,
+  showProductName = false,
 }: {
   session: WorkshopRow;
   /** 有值時標題可以點進單場詳情；沒有就是純文字 */
   detailHref?: string | null;
   /** 單場詳情頁已經有大標，不必再重複商品名 */
   showTitle?: boolean;
+  /** 標「新開」（首頁用，判斷規則見 home-sessions.tsx） */
+  isNew?: boolean;
+  /**
+   * 有梯次名稱時，在上面補一行課名。首頁只看得到這一列，
+   * 光寫「初階（第 1–4 堂）」看不出是哪一門課。
+   */
+  showProductName?: boolean;
 }) {
   const { month, day, weekday } = twDate(session.starts_at);
   // 扣掉未付款訂單佔住的位子，跟 /api/orders 的容量檢查用同一個定義
@@ -122,6 +131,17 @@ export function SessionRow({
 
         {showTitle && (
           <h3 className="t-h3 min-w-0 md:col-start-2 md:row-start-1">
+            {showProductName && session.sessionTitle?.trim() && (
+              <span className="mb-[2px] block font-sans text-[16px] leading-[1.6] font-normal text-brown-500">
+                {session.title}
+              </span>
+            )}
+            {isNew && (
+              /* 深焦糖底白字（約 6.3:1），不用淺焦糖 —— 那個只有 2.96:1 */
+              <span className="mr-[8px] inline-block rounded-full bg-caramel-dk px-[10px] align-[3px] font-sans text-[15px] leading-[1.7] font-medium tracking-[0.08em] text-white">
+                新開
+              </span>
+            )}
             {detailHref ? (
               <Link
                 href={detailHref}

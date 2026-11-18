@@ -16,6 +16,10 @@ import { formatTag } from "@/lib/session-format";
  * 仍是可以點的連結（用 LINE 登記候補），不是 disabled。
  *
  * 剩餘名額只拿來判斷額滿，**不顯示數字**（見下方價格區塊的註解）。
+ *
+ * CTA 看 detailHref 決定去哪：
+ *   有（首頁、/workshops 列表）→ 連到課程介紹頁，讓人先看完再決定
+ *   沒有（/workshops/[slug] 介紹頁本身）→ AddSessionButton，加入購物車去結帳
  */
 export function SessionRow({
   session,
@@ -208,6 +212,26 @@ export function SessionRow({
                 : "用 LINE 報名這一場（會開啟 LINE）"}
             </span>
           </a>
+        ) : detailHref ? (
+          /*
+            🔴 列表頁（首頁、/workshops）的 CTA 先帶去課程介紹頁，不直接進購物車。
+            以前這裡一律是 AddSessionButton —— 它加完購物車就 router.push("/checkout")，
+            客人從首頁按下去，連這門課上什麼、誰帶、幾堂都還沒看到，就落在付款頁。
+            介紹頁上的同一顆按鈕沒有 detailHref，走下面那條，才是真正的加入購物車。
+          */
+          <Link
+            href={detailHref}
+            className={buttonClass({
+              variant: "dark",
+              className: `w-full whitespace-nowrap md:w-auto${compact ? " max-md:w-auto!" : ""}`,
+            })}
+          >
+            {/* 視覺維持「我要報名」，朗讀補一句去向，免得以為按了就報名完成 */}
+            <span aria-hidden="true">我要報名</span>
+            <span className="sr-only">
+              {`我要報名：${headline} ${dateText}${tag ? `（${tag}）` : ""}，先看課程介紹`}
+            </span>
+          </Link>
         ) : (
           <AddSessionButton
             sessionId={session.id}

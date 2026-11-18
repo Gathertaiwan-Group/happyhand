@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getStaff } from "@/lib/admin/guard";
 import { ROLE_LABELS } from "@/lib/admin/roles";
@@ -57,6 +58,18 @@ export default async function AdminLayout({
                   {ROLE_LABELS[staff.role]}
                 </div>
               </div>
+
+              {/*
+                回前台。側欄最下面本來就有一個，但整條側欄是 `admin:flex` ——
+                1024px 以下不顯示，手機與平板根本沒有出口；桌機上它也在捲動區外，
+                頁面長一點就捲不到。放在 header 才是每一頁、每個裝置都看得到。
+              */}
+              <Link
+                href="/"
+                className="inline-flex min-h-11 items-center rounded-input border border-line-input px-3.5 text-[14px] text-ink transition-colors hover:bg-panel admin:min-h-10"
+              >
+                回前台
+              </Link>
 
               {/* app/logout/route.ts 刻意只收 POST（GET 的話一張 <img src="/logout"> 就能把人登出），
                   所以這裡是 form 不是 Link。純 HTML 表單，不需要 client component。 */}

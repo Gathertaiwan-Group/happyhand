@@ -34,9 +34,17 @@ const isNew = (p: ProductWithSessions) => p.tags.includes(NEW_TAG);
  */
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "全部" },
-  { key: "new", label: NEW_TAG },
   ...CATEGORY_ORDER.map((c) => ({ key: c, label: CATEGORY_LABEL[c] })),
+  // 2026-11-18：「近期新課」移到最後。三種上課方式才是主要的找課方式。
+  { key: "new", label: NEW_TAG },
 ];
+
+/** 每一類的一句話說明，選了之後出現在分類鈕下面（取代以前標題帶的長段落）。 */
+const HINT: Partial<Record<FilterKey, string>> = {
+  recorded: "買了就能永久回放，看不懂隨時倒帶重來。",
+  live: "排好時間的線上直播，在家打開視訊跟著老師做。",
+  onsite: "小班制，老師一個一個看過去，工具講義都準備好。",
+};
 
 const matches = (p: ProductWithSessions, key: FilterKey) =>
   key === "all" ||
@@ -115,13 +123,17 @@ function CourseFilterView({
         課程列表
       </h2>
 
+      {/* 分類鈕。2026-11-18 手機版改版：以前是一排橫向捲動的膠囊，
+          第三顆以後被切在螢幕外，長輩不知道還能往右滑。
+          現在折行全部攤開（手機兩欄格狀），每顆都帶數量。 */}
       <div
         role="group"
         aria-label="課程分類"
-        className="flex gap-[10px] overflow-x-auto px-[20px] pt-[20px] pb-[8px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:justify-center md:gap-[12px] md:px-[40px] md:pt-[32px]"
+        className="mx-auto grid max-w-[1080px] grid-cols-2 gap-[8px] px-[16px] pt-[16px] md:flex md:flex-wrap md:justify-center md:gap-[12px] md:px-[40px] md:pt-[28px]"
       >
         {filters.map((f) => {
           const isActive = f.key === active;
+          const n = products.filter((p) => matches(p, f.key)).length;
           return (
             <button
               key={f.key}
@@ -129,23 +141,34 @@ function CourseFilterView({
               aria-pressed={isActive}
               onClick={() => select(f.key)}
               className={[
-                "inline-flex min-h-[56px] shrink-0 items-center rounded-pill border px-[26px] text-[17px] whitespace-nowrap transition-colors duration-200",
+                "inline-flex min-h-[56px] items-center justify-center gap-[6px] rounded-pill border-2 px-[14px] text-[18px] whitespace-nowrap transition-colors duration-200 md:px-[26px]",
+                // 手機兩欄：其餘按鈕是偶數顆時讓「全部」獨佔一排，格子才不會缺一角
+                f.key === "all" && (filters.length - 1) % 2 === 0 ? "col-span-2" : "",
                 isActive
-                  ? "border-caramel-ink bg-caramel-ink text-white"
-                  : "border-sand-500 bg-cream-200 text-brown-500 hover:bg-cream-300",
+                  ? "border-brown-900 bg-brown-900 font-medium text-white"
+                  : "border-sand-400 bg-white text-brown-900 hover:border-caramel-ink",
               ].join(" ")}
             >
               {f.label}
+              <span className={`text-[16px] ${isActive ? "text-cream-200" : "text-brown-500"}`}>
+                {n}
+              </span>
             </button>
           );
         })}
       </div>
 
+      {HINT[active] && (
+        <p className="mx-auto max-w-[1080px] px-[16px] pt-[12px] text-[17px] leading-[1.7] text-brown-700 md:px-[40px] md:text-center">
+          {HINT[active]}
+        </p>
+      )}
+
       <p aria-live="polite" className="sr-only">
         目前顯示 {list.length} 項課程
       </p>
 
-      <div className="fab-safe mx-auto grid max-w-[1180px] grid-cols-1 gap-[14px] px-[20px] pt-[20px] pb-[32px] md:grid-cols-2 md:gap-[24px] md:px-[40px] md:pt-[36px] md:pb-[64px] lg:grid-cols-3">
+      <div className="fab-safe mx-auto grid max-w-[1180px] grid-cols-1 gap-[12px] px-[16px] pt-[16px] pb-[32px] md:grid-cols-2 md:gap-[24px] md:px-[40px] md:pt-[32px] md:pb-[64px] lg:grid-cols-3">
         {list.map((p) => (
           <CourseCard key={p.slug} product={p} />
         ))}
@@ -157,11 +180,11 @@ function CourseFilterView({
         ) : null}
 
         {/* 每頁都要有的「用 LINE 問」出口（設計稿 273–277） */}
-        <div className="flex flex-col items-center justify-center rounded-[20px] border border-dashed border-sand-400 bg-cream-100 p-[28px] text-center md:rounded-card md:p-[32px]">
+        <div className="mt-[8px] flex flex-col items-center justify-center rounded-[18px] border border-dashed border-sand-400 bg-cream-100 p-[22px] text-center md:mt-0 md:rounded-card md:p-[32px]">
           <h3 className="font-serif text-[19px] leading-[1.5] text-brown-900 md:text-[21px] md:leading-[1.55]">
             不確定從哪堂開始？
           </h3>
-          <p className="mt-[10px] text-[17px] leading-[1.9] text-brown-500">
+          <p className="mt-[8px] text-[17px] leading-[1.8] text-brown-700">
             用 LINE 問我們，有真人陪你挑。
           </p>
           <a
@@ -170,7 +193,7 @@ function CourseFilterView({
             rel="noopener noreferrer"
             className={buttonClass({
               variant: "outline",
-              className: "mt-[16px]",
+              className: "mt-[14px] w-full md:w-auto",
             })}
           >
             用 LINE 問我們

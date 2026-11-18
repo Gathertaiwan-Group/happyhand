@@ -43,7 +43,7 @@ export function LessonList({ lessons }: { lessons: Lesson[] }) {
                 <div className="flex min-w-0 flex-1 items-center gap-[10px] md:gap-[14px]">
                   <span
                     aria-hidden
-                    className="shrink-0 font-serif text-[16px] text-brown-300 md:text-[18px]"
+                    className="shrink-0 font-serif text-[16px] text-brown-500 md:text-[18px]"
                   >
                     {String(i + 1).padStart(2, "0")}
                   </span>
@@ -69,7 +69,7 @@ export function LessonList({ lessons }: { lessons: Lesson[] }) {
                     ) : null}
                   </span>
                 </div>
-                <span className="shrink-0 text-[16px] text-brown-300">
+                <span className="shrink-0 text-[16px] text-brown-500">
                   {formatDuration(lesson.duration_sec)}
                 </span>
               </div>

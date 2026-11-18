@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { LinkButton } from "@/components/ui/button";
 import { Figure } from "@/components/ui/placeholder";
-import { MobileActionBar } from "@/components/mobile-action-bar";
 import { REASONS, TEACHER, detailHrefMap } from "@/lib/content";
 import {
   getProducts,
@@ -11,9 +9,12 @@ import {
   getWorkshopSessions,
   type TeacherSetting,
 } from "@/lib/data";
-import { SITE, formatPrice } from "@/lib/site";
+import { SITE } from "@/lib/site";
 import { HomeSessions } from "./_components/home-sessions";
 import { SessionRow } from "./workshops/_components/session-row";
+import { SessionCard } from "./workshops/_components/session-card";
+import { CourseCard } from "./courses/_components/course-card";
+import { CategoryTiles } from "./_components/category-tiles";
 import { hasOnline } from "@/lib/session-format";
 import { CATEGORY_HREF, sessionCategories } from "@/lib/course-category";
 
@@ -38,7 +39,8 @@ export const metadata: Metadata = {
 export const revalidate = 300;
 
 /**
- * 首頁精選課程的順序依設計稿；中間那張手機不顯示（設計稿手機只放兩張）。
+ * 首頁精選課程的順序依設計稿。2026-11-18 起手機改成橫式小卡，三張都顯示
+ * （hideOnMobile 欄位保留但目前不使用）。
  * 順序是設計決定所以留在程式碼裡，但「有哪些課、叫什麼、賣多少」一律讀資料庫。
  * 名單裡的課若被下架就自動跳過，再用 is_featured / sort_order 補到三張。
  */
@@ -79,19 +81,23 @@ export default async function HomePage() {
   const sessionItems = sessions.map((s) => {
     const key = s.id ?? `${s.slug}-${s.starts_at}`;
     const isNew = s.createdAt ? Date.parse(s.createdAt) >= newSince : false;
+    const href = detailHrefs.get(s.slug);
     return {
       key,
       cats: sessionCategories(s.format),
       isNew,
-      node: (
-        <SessionRow
+      // 有介紹頁可去 → 整張可點的列表卡；查不到商品（沒有介紹頁）才退回舊的場次列，
+      // 它會直接給加入購物車／LINE 的按鈕。
+      node: href ? (
+        <SessionCard
           key={key}
           session={s}
           isNew={isNew}
           showProductName
-          compact
-          detailHref={detailHrefs.get(s.slug) ?? null}
+          detailHref={href}
         />
+      ) : (
+        <SessionRow key={key} session={s} isNew={isNew} showProductName compact detailHref={null} />
       ),
     };
   });
@@ -110,214 +116,193 @@ export default async function HomePage() {
 
   const HOME_COURSES = [...picked, ...filler];
 
+  // 第一屏三類入口旁的數字（桌機才顯示）
+  const counts = {
+    recorded: courses.length,
+    live: sessions.filter((s) => sessionCategories(s.format).includes("live")).length,
+    onsite: sessions.filter((s) => sessionCategories(s.format).includes("onsite")).length,
+  };
+
   return (
-    <div className="pb-action-bar">
-      {/* ── 1. Hero（縮短版）── 設計稿 L41–54（桌機）／L135–146（手機）
-          2026-11-18 業主要「學生一上來就看到線上直播與線下工作坊」：
-          主視覺縮短（墨圈縮小、桌機標題一行、拿掉兩顆按鈕），讓下一段
-          「近期開課」進到手機 390×844 的第一屏。按鈕原本就是帶去課程與場次，
-          場次現在就在正下方，預錄課程在下一段，不需要再重複。 */}
+    <div>
+      {/* ── 1. 開場＋三類課程入口 ──
+          2026-11-18 手機版改版：業主說手機版「不好閱讀、找不到課」。
+          參考 PressPlay／MasterClass，第一屏先給「三種上課方式」的入口，
+          品牌標語縮成一行小標，墨圈只在桌機出現（手機頁首已經有字標）。
+          下一段「近期開課」仍然在手機 390×844 的第一屏露出開頭。 */}
       <section
         aria-labelledby="hero-title"
-        className="relative overflow-hidden px-[22px] pt-[12px] pb-[12px] text-center md:px-[40px] md:pt-[40px] md:pb-[36px]"
+        className="relative overflow-hidden bg-cream-100 px-[16px] pt-[20px] pb-[22px] md:px-[40px] md:pt-[44px] md:pb-[44px]"
       >
         <div
           aria-hidden="true"
-          className="halo-bg pointer-events-none absolute top-[-60px] left-1/2 h-[280px] w-[280px] -translate-x-1/2 rounded-full md:top-[-120px] md:h-[520px] md:w-[520px]"
+          className="halo-bg pointer-events-none absolute top-[-80px] left-1/2 hidden h-[520px] w-[520px] -translate-x-1/2 rounded-full md:block"
         />
-        <div className="relative mx-auto max-w-maxw">
-          {/* 品牌標記。logo-mark.png 是去背過的墨圈，四周留了 6% 白邊，
-              所以不會被 rounded-full 切到外緣。 */}
-          <Image
-            src="/logo-mark.png"
-            alt="快樂手 Happy Healing Hands"
-            width={691}
-            height={691}
-            priority
-            sizes="(min-width: 768px) 88px, 48px"
-            className="mx-auto h-[48px] w-[48px] md:h-[88px] md:w-[88px]"
-          />
-          <h1 id="hero-title" className="t-h1 pt-[4px] md:pt-[14px]">
-            身體會記得
-            <br className="md:hidden" />
-            被好好對待的感覺
-          </h1>
-          <p className="t-body mx-auto mt-[6px] hidden max-w-[640px] md:block text-pretty text-brown-500 md:mt-[10px] md:max-w-[880px]">
-            柳樺老師的仁神術（JSJ）練習。不需要體力、不需要器材，把手放在自己身上，慢慢把緊繃的地方鬆開。
-          </p>
+        <div className="relative mx-auto max-w-[1080px]">
+          <div className="text-center">
+            <Image
+              src="/logo-mark.png"
+              alt=""
+              width={691}
+              height={691}
+              priority
+              sizes="72px"
+              className="mx-auto hidden h-[72px] w-[72px] md:block"
+            />
+            <h1
+              id="hero-title"
+              className="font-serif text-[24px] leading-[1.5] font-medium tracking-[0.04em] text-brown-900 md:mt-[12px] md:text-[42px]"
+            >
+              身體會記得被好好對待的感覺
+            </h1>
+            <p className="mx-auto mt-[4px] max-w-[760px] text-[17px] leading-[1.75] text-pretty text-brown-700 md:mt-[10px] md:text-[19px]">
+              柳樺老師的仁神術（JSJ）練習<span className="hidden md:inline">。不需要體力、不需要器材，把手放在自己身上，慢慢把緊繃的地方鬆開</span>
+            </p>
+          </div>
+
+          <h2 className="mt-[18px] mb-[10px] text-[17px] font-medium text-brown-900 md:mt-[32px] md:mb-[16px] md:text-center md:text-[19px]">
+            想怎麼上課？
+          </h2>
+          <CategoryTiles counts={counts} />
         </div>
       </section>
 
-      {/* ── 2. 近期開課（線上直播／線下工作坊）── 緊接主視覺，第一屏就要看得到 */}
+      {/* ── 2. 近期開課（線上直播／線下工作坊）── */}
       <HomeSessions
         items={sessionItems}
         hasOnlineSessions={sessions.some((s) => hasOnline(s.format))}
       />
 
-      {/* ── 3. 預錄課程卡 ── 設計稿 L74–105（桌機）／L164–184（手機）
-          一門課都沒有時整段不渲染：留一個「從哪一堂開始都可以」配空白格
-          比直接不出現還糟。 */}
+      {/* ── 3. 預錄課程 ── 手機是左圖右文的橫式卡（三門都顯示），桌機三欄直式卡。
+          一門課都沒有時整段不渲染。 */}
       {HOME_COURSES.length > 0 && (
-      <section
-        aria-labelledby="courses-title"
-        className="bg-cream-100 px-[20px] pt-[40px] pb-[96px] md:px-[40px] md:py-[76px]"
-      >
-        <div className="mx-auto max-w-[1080px]">
-          <div className="text-center">
-            <p className="t-eyebrow text-caramel-ink">RECORDED COURSES</p>
-            <h2 id="courses-title" className="t-h2 pt-[8px] md:pt-[12px]">
-              預錄課程，從哪一堂開始都可以
-            </h2>
-            <p className="t-body mx-auto mt-[10px] max-w-[620px] text-pretty text-brown-500">
+        <section
+          aria-labelledby="courses-title"
+          className="border-t border-sand-300 bg-cream-100 px-[16px] pt-[28px] pb-[36px] md:px-[40px] md:py-[64px]"
+        >
+          <div className="mx-auto max-w-[1080px]">
+            <div className="flex items-end justify-between gap-[12px]">
+              <h2
+                id="courses-title"
+                className="font-serif text-[23px] leading-[1.4] font-semibold text-brown-900 md:text-[30px]"
+              >
+                預錄課程
+              </h2>
+              <Link
+                href={CATEGORY_HREF.recorded}
+                className="-my-[10px] inline-flex min-h-[48px] items-center gap-[2px] text-[17px] text-brown-700 underline-offset-4 hover:text-caramel-dk hover:underline"
+              >
+                看全部<span aria-hidden="true">›</span>
+              </Link>
+            </div>
+            <p className="mt-[4px] text-[17px] leading-[1.75] text-pretty text-brown-700">
               買了就能永久回放，不用配合時間，在家慢慢練。
             </p>
-          </div>
 
-          <ul className="mt-[22px] grid gap-[14px] md:mt-[40px] md:grid-cols-2 md:gap-[24px] lg:grid-cols-3">
-            {HOME_COURSES.map(({ product, hideOnMobile }) => {
-              const featured = Boolean(product.featured);
-              return (
-                <li
-                  key={product.slug}
-                  className={hideOnMobile ? "hidden md:flex" : "flex"}
-                >
-                  <article
-                    className={`flex w-full flex-col rounded-card bg-white px-[30px] py-[34px] text-center transition duration-200 hover:-translate-y-1 hover:shadow-card ${
-                      featured
-                        ? "border-2 border-caramel"
-                        : "border border-sand-500"
-                    }`}
-                  >
-                    <Figure
-                      /* /courses、/courses/[slug]、/account 都有傳 cover_url，
-                         只有首頁漏掉 —— 後台上傳封面之後這裡不會跟著換。 */
-                      src={product.cover_url}
-                      rounded="rounded-full"
-                      alt={`${product.title} 課程縮圖`}
-                      className="mx-auto h-[76px] w-[76px] shrink-0 md:h-[96px] md:w-[96px]"
-                      sizes="96px"
-                    />
-                    <h3 className="mt-[16px] font-serif text-[19px] leading-[1.55] md:mt-[22px] md:text-[22px]">
-                      {product.title}
-                    </h3>
-                    <p className="mt-[12px] text-[17px] leading-[1.9] text-pretty text-brown-500">
-                      {product.subtitle}
-                    </p>
-                    <p className="mt-[12px] flex items-baseline justify-center gap-[10px] md:mt-[16px]">
-                      <span className="font-serif text-[23px] text-caramel-ink md:text-[26px]">
-                        {formatPrice(product.price)}
-                      </span>
-                      {product.compare_at_price ? (
-                        <span className="text-[16px] text-brown-300 line-through">
-                          {formatPrice(product.compare_at_price)}
-                        </span>
-                      ) : null}
-                    </p>
-                    <div className="mt-auto pt-[14px] md:pt-[18px]">
-                      <LinkButton
-                        href={`/courses/${product.slug}`}
-                        variant={featured ? "primary" : "outline"}
-                        className="w-full md:w-auto"
-                      >
-                        了解課程
-                      </LinkButton>
-                    </div>
-                  </article>
+            <ul className="mt-[16px] grid list-none gap-[12px] md:mt-[28px] md:grid-cols-2 md:gap-[24px] lg:grid-cols-3">
+              {HOME_COURSES.map(({ product }) => (
+                <li key={product.slug} className="flex">
+                  <div className="w-full">
+                    <CourseCard product={product} />
+                  </div>
                 </li>
-              );
-            })}
-          </ul>
-
-          <div className="mt-[20px] text-center md:mt-[32px]">
-            <LinkButton
-              href={CATEGORY_HREF.recorded}
-              variant="outline"
-              className="w-full md:w-auto"
-            >
-              看全部預錄課程
-            </LinkButton>
+              ))}
+            </ul>
           </div>
-        </div>
-      </section>
+        </section>
       )}
 
-      {/* ── 4. 三項理由 ──（原本在主視覺下面，讓位給近期開課） 設計稿 L56–72（桌機）／L147–163（手機） */}
-      <section aria-label="快樂手的三個特點" className="border-t border-sand-300">
-        <ul className="mx-auto max-w-maxw md:grid md:grid-cols-3">
-          {REASONS.map((reason, i) => (
-            <li
-              key={reason.no}
-              className={`border-b border-sand-300 px-[24px] py-[30px] text-center md:border-b-0 md:px-[40px] md:py-[52px] ${
-                i < REASONS.length - 1 ? "md:border-r md:border-sand-300" : ""
-              }`}
-            >
+      {/* ── 4. 三項理由 ── 手機改成靠左的三列，不再每一項置中佔掉半個螢幕 */}
+      <section aria-label="快樂手的三個特點" className="border-t border-sand-300 px-[16px] py-[28px] md:px-[40px] md:py-[56px]">
+        <ul className="mx-auto grid max-w-[1080px] gap-[18px] md:grid-cols-3 md:gap-[32px]">
+          {REASONS.map((reason) => (
+            <li key={reason.no} className="flex gap-[14px] md:flex-col md:gap-[8px] md:text-center">
               <span
                 aria-hidden="true"
-                className="block font-serif text-[28px] text-caramel-ink md:text-[36px]"
+                className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full bg-cream-200 font-serif text-[22px] text-caramel-dk md:mx-auto md:h-[56px] md:w-[56px] md:text-[26px]"
               >
                 {reason.no}
               </span>
-              <h2 className="t-h3 pt-[8px] md:pt-[14px]">{reason.title}</h2>
-              <p className="t-body-sm mt-[8px] text-pretty text-brown-500 md:mt-[12px]">
-                {reason.desc}
-              </p>
+              <div>
+                <h2 className="font-serif text-[20px] leading-[1.45] font-semibold text-brown-900 md:text-[23px]">
+                  {reason.title}
+                </h2>
+                <p className="mt-[2px] text-[17px] leading-[1.75] text-pretty text-brown-700 md:mt-[6px]">
+                  {reason.desc}
+                </p>
+              </div>
             </li>
           ))}
         </ul>
       </section>
 
-      {/* ── 5. 老師 ── 設計稿 L107–118（桌機；手機稿未收錄本區，改上下堆疊） */}
+      {/* ── 5. 老師 ── 手機改成圓形小照＋文字，不再放一張佔滿整個螢幕的大照片 */}
       <section
         aria-labelledby="teacher-title"
-        className="mx-auto grid max-w-[1100px] gap-[28px] px-[20px] py-[40px] md:grid-cols-[0.85fr_1.15fr] md:items-center md:gap-[56px] md:px-[40px] md:py-[80px]"
+        className="border-t border-sand-300 px-[16px] py-[32px] md:px-[40px] md:py-[72px]"
       >
-        <Figure
-          /* 照片放在 site_settings，後台 /admin/settings 換一次三頁一起換。
-             沒設定時 Figure 自己會退回斜紋佔位圖。 */
-          src={teacher?.photo_url}
-          rounded="rounded-[999px_999px_28px_28px]"
-          label="柳樺老師教學照"
-          alt="劉柳樺老師教學照"
-          className="mx-auto aspect-[4/5] w-full max-w-[300px] md:max-w-none"
-          sizes="(min-width: 768px) 42vw, 300px"
-        />
-        <div>
-          <p className="t-eyebrow text-caramel-ink">{TEACHER.eyebrow}</p>
-          <h2 id="teacher-title" className="t-h2 pt-[14px]">
-            {TEACHER.name}
-          </h2>
-          {TEACHER.paragraphs.map((paragraph, i) => (
-            <p
-              key={paragraph.slice(0, 8)}
-              className={`t-body text-pretty text-brown-700 ${
-                i === 0 ? "mt-[20px]" : "mt-[16px]"
-              }`}
+        <div className="mx-auto grid max-w-[1080px] gap-[18px] md:grid-cols-[0.8fr_1.2fr] md:items-center md:gap-[56px]">
+          <Figure
+            /* 照片放在 site_settings，後台 /admin/settings 換一次三頁一起換。 */
+            src={teacher?.photo_url}
+            rounded="rounded-[999px_999px_28px_28px]"
+            label="柳樺老師教學照"
+            alt="劉柳樺老師教學照"
+            className="mx-auto hidden aspect-[4/5] w-full md:block"
+            sizes="(min-width: 768px) 40vw, 1px"
+          />
+          <div>
+            <div className="flex items-center gap-[14px]">
+              <Figure
+                src={teacher?.photo_url}
+                rounded="rounded-full"
+                alt=""
+                className="h-[72px] w-[72px] shrink-0 md:hidden"
+                sizes="72px"
+                objectPosition="object-top"
+              />
+              <div>
+                <p className="text-[16px] tracking-[0.12em] text-caramel-dk">{TEACHER.eyebrow}</p>
+                <h2 id="teacher-title" className="font-serif text-[23px] leading-[1.4] font-semibold text-brown-900 md:mt-[6px] md:text-[32px]">
+                  {TEACHER.name}
+                </h2>
+              </div>
+            </div>
+            {TEACHER.paragraphs.map((paragraph, i) => (
+              <p
+                key={paragraph.slice(0, 8)}
+                className={`text-[17px] leading-[1.85] text-pretty text-brown-700 md:text-[18px] ${
+                  i === 0 ? "mt-[14px] md:mt-[20px]" : "mt-[10px] md:mt-[14px]"
+                }`}
+              >
+                {paragraph}
+              </p>
+            ))}
+            <Link
+              href="/teachers"
+              className="mt-[8px] inline-flex min-h-[48px] items-center border-b border-caramel text-[18px] text-brown-900 transition-colors duration-200 hover:text-caramel-dk"
             >
-              {paragraph}
-            </p>
-          ))}
-          <Link
-            href="/teachers"
-            className="mt-[16px] inline-block border-b border-caramel pt-[11px] pb-[6px] text-[18px] text-brown-900 transition-colors duration-200 hover:text-caramel-ink"
-          >
-            看完整師資介紹 →
-          </Link>
+              看完整師資介紹 →
+            </Link>
+          </div>
         </div>
       </section>
 
-      {/* ── 6. Footer CTA 帶 ── 設計稿 L120–123 */}
+      {/* ── 6. 聯絡帶 ──
+          底色從淺焦糖（#C08B5C，白字只有 2.96:1）換成深焦糖（#8A5227，白字 6.33:1）。
+          手機沒有底部固定列了，LINE 的主要出口在這裡與選單抽屜裡。 */}
       <section
         aria-labelledby="contact-title"
-        className="bg-caramel px-[20px] py-[40px] text-center text-white md:px-[40px] md:py-[64px]"
+        className="bg-caramel-dk px-[20px] py-[36px] text-center text-white md:px-[40px] md:py-[60px]"
       >
         <div className="mx-auto max-w-maxw">
           <h2
             id="contact-title"
-            className="font-serif text-[24px] leading-[1.4] font-medium md:text-[32px]"
+            className="font-serif text-[23px] leading-[1.45] font-medium md:text-[32px]"
           >
             想問什麼都可以，我們有真人回訊息
           </h2>
-          <p className="mt-[12px] text-[18px] leading-[1.95]">
+          <p className="mt-[10px] text-[18px] leading-[1.9]">
             {footerLineBeforeLine}
             {/* LINE ID 要能直接點開，行內連結補上下 padding 讓觸控區達 44px */}
             <a
@@ -331,11 +316,17 @@ export default async function HomePage() {
             </a>
             {footerLineAfterLine}
           </p>
+          <a
+            href={SITE.lineHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-[14px] inline-flex min-h-[56px] w-full items-center justify-center rounded-pill bg-white px-[32px] text-[18px] font-medium text-brown-900 transition-colors duration-200 hover:bg-cream-200 md:w-auto"
+          >
+            用 LINE 問我們
+            <span className="sr-only">（會開啟 LINE）</span>
+          </a>
         </div>
       </section>
-
-      {/* ── 7. 手機固定行動列 ── 設計稿 L185–188 */}
-      <MobileActionBar href={CATEGORY_HREF.recorded} label="看預錄課程" />
     </div>
   );
 }

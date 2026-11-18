@@ -4,12 +4,14 @@ import { notFound } from "next/navigation";
 import { Figure } from "@/components/ui/placeholder";
 import { buttonClass } from "@/components/ui/button";
 import { MobileActionBar } from "@/components/mobile-action-bar";
-import { SITE } from "@/lib/site";
+import { SITE, formatPrice } from "@/lib/site";
 import {
   getProduct,
   getWorkshopSessions,
   getPublishedSlugs,
   getSiteSetting,
+  timeRange,
+  twDate,
   type HealthNoticeSetting,
   type TeacherSetting,
 } from "@/lib/data";
@@ -28,7 +30,8 @@ import {
   HealthNoticeSection,
 } from "../_components/content-sections";
 import { NoSessions } from "../_components/no-sessions";
-import { hasOnline, ONLINE_LINK_NOTE } from "@/lib/session-format";
+import { hasOnline, ONLINE_LINK_NOTE, placeText } from "@/lib/session-format";
+import { CATEGORY_LABEL, categoriesOf } from "@/lib/course-category";
 
 type PageProps = { params: Promise<{ slug: string }> };
 
@@ -128,6 +131,24 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
     address,
   )}`;
 
+  // 標題下方「報名重點」用：最近一場的時間、方式，與最低價
+  const firstSession = sessions[0] ?? null;
+  const firstSessionText = firstSession
+    ? (() => {
+        const d = twDate(firstSession.starts_at);
+        const m = d.month.replace(/\s+/g, "").replace(/月+$/, "月");
+        const day = d.day.replace(/日+$/, "");
+        return `${m}${day}日（${d.weekday}）${timeRange(firstSession.starts_at, firstSession.ends_at)}`;
+      })()
+    : "";
+  // 0 元的是「意願登記」梯次，不拿來當「起價」；全部都是 0 才寫不收費
+  const paid = sessions.map((s) => s.price).filter((p) => p > 0);
+  const minPrice = paid.length ? Math.min(...paid) : 0;
+  const priceText =
+    minPrice > 0
+      ? `${formatPrice(minPrice)}${paid.some((p) => p !== minPrice) ? " 起" : ""}`
+      : "不收費";
+
   const openSessionKey = openSession
     ? (openSession.id ?? `${openSession.slug}@${openSession.starts_at}`)
     : null;
@@ -154,13 +175,46 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
         />
 
         {/* 間距用 flex gap，不用 margin：t-h1/t-h2/t-h3 utility 自帶 margin:0 會蓋掉 mt-* */}
-        <div className="mt-[24px] flex max-w-[760px] flex-col gap-[10px]">
-          <span className="t-eyebrow text-caramel-ink">WORKSHOP</span>
-          <h1 className="t-h1">{product.title}</h1>
+        <div className="mt-[20px] flex max-w-[760px] flex-col gap-[8px] md:mt-[24px] md:gap-[10px]">
+          {/* 以前寫死英文「WORKSHOP」，線上直播課也這樣標。改成跟 /courses 同一套分類 */}
+          <span className="text-[16px] leading-[1.6] text-caramel-dk">
+            {categoriesOf(product).map((c) => CATEGORY_LABEL[c]).join("・")}
+          </span>
+          <h1 className="font-serif text-[28px] leading-[1.4] font-semibold text-brown-900 md:text-[44px] md:leading-[1.35]">
+            {product.title}
+          </h1>
           {product.subtitle && (
-            <p className="t-body-lg text-brown-500">{product.subtitle}</p>
+            <p className="text-[18px] leading-[1.7] text-brown-700 md:text-[20px]">{product.subtitle}</p>
           )}
-          <p className="t-body text-brown-500">{product.description}</p>
+
+          {/* 報名重點。2026-11-18 手機版改版：以前要捲過一整段介紹文字才看得到
+              「場次與報名」。參考 Accupass 活動頁：標題正下方先給時間、方式、費用，
+              和一顆直接跳到場次的按鈕。 */}
+          {firstSession && (
+            <div className="mt-[8px] rounded-[18px] border border-sand-300 bg-cream-100 p-[16px] md:p-[22px]">
+              <dl className="grid gap-[8px] text-[17px] leading-[1.6]">
+                <div className="flex gap-[12px]">
+                  <dt className="w-[4.5em] shrink-0 text-brown-500">{sessions.length > 1 ? "最近一場" : "上課時間"}</dt>
+                  <dd className="text-brown-900">{firstSessionText}</dd>
+                </div>
+                <div className="flex gap-[12px]">
+                  <dt className="w-[4.5em] shrink-0 text-brown-500">上課方式</dt>
+                  <dd className="text-brown-900">{placeText(firstSession.format, firstSession.location)}</dd>
+                </div>
+                <div className="flex gap-[12px]">
+                  <dt className="w-[4.5em] shrink-0 text-brown-500">費用</dt>
+                  <dd className="font-serif text-[19px] font-semibold text-caramel-dk">{priceText}</dd>
+                </div>
+              </dl>
+              <a
+                href="#sessions"
+                className={buttonClass({ variant: "primary", className: "mt-[14px] w-full md:w-auto" })}
+              >
+                {sessions.length > 1 ? `看 ${sessions.length} 個場次・報名` : "看場次・報名"}
+              </a>
+            </div>
+          )}
+          <p className="t-body mt-[4px] text-brown-700">{product.description}</p>
 
           {/* 後台「標題下方引言」。留空就不渲染，換行會保留。 */}
           <LeadText text={product.hero_lead} />
@@ -183,11 +237,11 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
       {/* 場次列表 */}
       <section
         id="sessions"
-        className="fab-safe bg-cream-100 px-[20px] py-[32px] md:px-[40px] md:py-[48px]"
+        className="fab-safe scroll-mt-[72px] bg-cream-100 px-[16px] py-[28px] md:px-[40px] md:py-[48px]"
       >
         <div className="mx-auto max-w-maxw">
-          <h2 className="t-h2">場次與報名</h2>
-          <p className="t-body-sm mt-[10px] text-brown-500">
+          <h2 className="font-serif text-[24px] leading-[1.4] font-semibold text-brown-900 md:text-[32px]">場次與報名</h2>
+          <p className="mt-[8px] text-[17px] leading-[1.8] text-brown-700">
             {"選一個你方便的日子，按「我要報名」就可以了。不方便線上付款的話，用 LINE 問我們，我們幫你代訂。"}
           </p>
 
@@ -362,7 +416,7 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
           </div>
         </div>
 
-        <p className="mt-[28px] t-caption text-brown-300">{SITE.disclaimer}</p>
+        <p className="mt-[28px] t-caption text-brown-500">{SITE.disclaimer}</p>
       </section>
 
       {/*

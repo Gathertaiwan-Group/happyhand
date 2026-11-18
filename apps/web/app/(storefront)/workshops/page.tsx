@@ -1,10 +1,10 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { buttonClass } from "@/components/ui/button";
-import { MobileActionBar } from "@/components/mobile-action-bar";
 import { SITE } from "@/lib/site";
 import { getProducts, getWorkshopSessions } from "@/lib/data";
 import { SessionRow } from "./_components/session-row";
+import { SessionCard } from "./_components/session-card";
 import {
   WorkshopsBrowser,
   WorkshopsBrowserFallback,
@@ -44,30 +44,30 @@ export default async function WorkshopsPage() {
     hasOnlineSessions: sessions.some((s) => hasOnline(s.format)),
     items: sessions.map((s) => {
       const key = s.id ?? `${s.slug}-${s.starts_at}`;
+      const href = detailHrefs.get(s.slug);
       return {
         key,
         cats: sessionCategories(s.format),
-        node: (
-          <SessionRow
-            key={key}
-            session={s}
-            detailHref={detailHrefs.get(s.slug) ?? null}
-          />
+        // 有介紹頁 → 整張可點的列表卡；查不到商品才退回舊的場次列（直接加入購物車／LINE）
+        node: href ? (
+          <SessionCard key={key} session={s} detailHref={href} />
+        ) : (
+          <SessionRow key={key} session={s} detailHref={null} />
         ),
       };
     }),
   };
 
   return (
-    <div className="pb-action-bar">
+    <div>
       {/* 標題帶 + 分類鈕（全部場次／線上直播／線下工作坊）+ 場次列表。
           篩選在瀏覽器端套用，見 workshops-browser.tsx。 */}
       <Suspense fallback={<WorkshopsBrowserFallback {...browserProps} />}>
         <WorkshopsBrowser {...browserProps} />
       </Suspense>
 
-      <section className="fab-safe px-[20px] pt-[14px] pb-[28px] md:px-[40px] md:pb-[48px]">
-        <div className="mx-auto max-w-maxw">
+      <section className="fab-safe px-[16px] pt-[20px] pb-[32px] md:px-[40px] md:pt-[32px] md:pb-[48px]">
+        <div className="mx-auto max-w-[1080px]">
           {/* 包班詢問（設計稿 L540–546） */}
           <div className="flex flex-col gap-[16px] rounded-sm border border-dashed border-sand-400 p-[20px] md:flex-row md:items-center md:justify-between md:gap-[24px] md:p-[26px_30px]">
             <div>
@@ -92,18 +92,12 @@ export default async function WorkshopsPage() {
             </a>
           </div>
 
-          <p className="mt-[24px] t-caption text-brown-300">
+          <p className="mt-[24px] t-caption text-brown-500">
             {SITE.disclaimer}
           </p>
         </div>
       </section>
 
-      {/* 主要動作就是開 LINE，關掉左邊的 LINE 鈕改成單顆滿版，長輩更好按 */}
-      <MobileActionBar
-        href={SITE.lineHref}
-        label="用 LINE 報名"
-        showLine={false}
-      />
     </div>
   );
 }

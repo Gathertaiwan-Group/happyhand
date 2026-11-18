@@ -11,23 +11,27 @@ import { AddToCartButton } from "./add-to-cart-button";
  * 頁面最外層需加 `.pb-action-bar` 預留空間。
  */
 export function CourseBuyBar({ product }: { product: Product }) {
+  // 2026-11-18 手機版改版：價格與按鈕併成同一排（參考 Hahow「立即購買」、Accupass「立即報名」），
+  // 固定列從約 130px 降到約 84px，內容區多出一大截。
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-sand-300 bg-white/97 px-[16px] pt-[12px] pb-[calc(12px+env(safe-area-inset-bottom))] backdrop-blur-sm md:hidden">
-      <p className="flex items-baseline gap-[10px] px-[4px] pb-[8px]">
-        <span className="font-serif text-[24px] font-semibold text-caramel-ink">
-          {formatPrice(product.price)}
-        </span>
-        {product.compare_at_price ? (
-          <span className="text-[16px] text-brown-300">
-            <span className="sr-only">原價 </span>
-            <span className="line-through">
-              {formatPrice(product.compare_at_price)}
-            </span>
+      <div className="flex items-center gap-[14px]">
+        <p className="flex shrink-0 flex-col leading-[1.2]">
+          <span className="font-serif text-[24px] font-semibold text-caramel-dk">
+            {formatPrice(product.price)}
           </span>
-        ) : null}
-      </p>
+          {product.compare_at_price ? (
+            <span className="text-[15px] text-brown-500">
+              <span className="sr-only">原價 </span>
+              <span className="line-through">
+                {formatPrice(product.compare_at_price)}
+              </span>
+            </span>
+          ) : null}
+        </p>
 
-      <AddToCartButton product={product} />
+        <AddToCartButton product={product} className="min-w-0 flex-1" />
+      </div>
     </div>
   );
 }

@@ -106,7 +106,7 @@ export function SessionRow({
       {session.sessionSummary?.trim() && (
         <>
           <br />
-          <span className="text-brown-300">{session.sessionSummary}</span>
+          <span className="text-brown-500">{session.sessionSummary}</span>
         </>
       )}
       {/*
@@ -124,17 +124,17 @@ export function SessionRow({
   );
 
   return (
-    <li className={`rounded-sm bg-cream-400 p-[20px] ${compact ? "max-md:flex max-md:flex-wrap max-md:items-center max-md:gap-x-[12px]" : ""} md:grid md:grid-cols-[96px_1fr_auto_auto] md:grid-rows-[auto_auto] md:items-center md:gap-x-[20px] md:p-[24px_30px] lg:gap-x-[28px]`}>
+    <li className={`rounded-sm border border-sand-300 bg-white p-[18px] ${compact ? "max-md:flex max-md:flex-wrap max-md:items-center max-md:gap-x-[12px]" : ""} md:grid md:grid-cols-[96px_1fr_auto_auto] md:grid-rows-[auto_auto] md:items-center md:gap-x-[20px] md:p-[24px_30px] lg:gap-x-[28px]`}>
       {/* 日期方塊與標題：手機同一行；桌機 display:contents 讓兩者各自成為 grid item */}
       <div className={`flex items-center gap-[14px] md:contents ${compact ? "max-md:w-full" : ""}`}>
-        <div className="shrink-0 rounded-input bg-white px-[12px] py-[8px] text-center md:col-start-1 md:row-span-2 md:row-start-1 md:bg-transparent md:p-0">
-          <div className="t-micro tracking-[0.1em] text-brown-300">
+        <div className="shrink-0 rounded-input bg-cream-200 px-[12px] py-[8px] text-center md:col-start-1 md:row-span-2 md:row-start-1 md:bg-transparent md:p-0">
+          <div className="t-micro tracking-[0.1em] text-brown-700">
             {monthLabel}
           </div>
           <div className="font-serif text-[26px] font-semibold leading-[1.1] text-brown-900 md:text-[34px]">
             {dayLabel}
           </div>
-          <div className="t-micro text-brown-300">{weekday}</div>
+          <div className="t-micro text-brown-700">{weekday}</div>
         </div>
 
         {!showTitle && locationLine}
@@ -172,8 +172,9 @@ export function SessionRow({
 
       {/* 價格與名額 */}
       <div className={`${compact ? "mt-[8px] min-w-0 flex-1" : "mt-[12px]"} flex items-baseline gap-[12px] md:col-start-3 md:row-span-2 md:row-start-1 md:mt-0 md:block md:text-right`}>
-        <span className="font-serif text-[23px] font-semibold text-caramel-ink md:text-[24px]">
-          {formatPrice(session.price)}
+        <span className="font-serif text-[23px] font-semibold text-caramel-dk md:text-[24px]">
+          {/* 意願登記這類 0 元的梯次，「$0」看起來像標錯價 */}
+          {session.price > 0 ? formatPrice(session.price) : "不收費"}
         </span>
         {/*
           🔴 不印剩餘名額（2026-10-15 指示）。小班制的課在開賣初期，「剩 16 位」
@@ -182,7 +183,7 @@ export function SessionRow({
           額滿仍然要講：那是**狀態**不是數字，客人要知道按鈕為什麼變成候補。
         */}
         {soldOut && (
-          <span className="block text-[16px] text-brown-300 md:mt-[4px]">
+          <span className="block text-[16px] text-brown-700 md:mt-[4px]">
             已額滿
           </span>
         )}

@@ -16,6 +16,7 @@ import { LessonList } from "../_components/lesson-list";
 import { AddToCartButton } from "../_components/add-to-cart-button";
 import { CourseBuyBar } from "../_components/course-buy-bar";
 import { formatTotalDuration } from "../_components/format";
+import { cardTagLine } from "@/lib/course-category";
 
 export const revalidate = 300;
 
@@ -116,36 +117,70 @@ export default async function CourseDetailPage({
                 priority
               />
 
-              <p className="t-caption mt-[20px] text-caramel-ink md:mt-[24px]">
-                {product.tags.join("・")}
+              {/* 分類由型態產生（預錄課程／線上直播／線下工作坊），後台標籤裡的
+                  「線上課程」這類分類字眼不再照印，跟 /courses 的卡片說法一致 */}
+              <p className="mt-[18px] text-[16px] leading-[1.6] text-caramel-dk md:mt-[24px]">
+                {cardTagLine(product)}
               </p>
 
-              <h1 className="mt-[8px] font-serif text-[26px] leading-[1.5] font-semibold text-brown-900 md:text-[34px] lg:text-[40px] lg:leading-[1.4]">
+              <h1 className="mt-[4px] font-serif text-[26px] leading-[1.45] font-semibold text-brown-900 md:text-[34px] lg:text-[40px] lg:leading-[1.4]">
                 {product.title}
               </h1>
 
-              <p className="t-body mt-[14px] text-brown-500 md:mt-[18px]">
+              <p className="mt-[12px] text-[17px] leading-[1.85] text-brown-700 md:mt-[18px] md:text-[18px]">
                 {product.description}
               </p>
 
+              {/* 重點資訊。2026-11-18 手機版改版：以前是五顆小膠囊（16px、淺底），
+                  像標籤雲不像資訊。改成打勾清單（參考 Hahow「關於課程」），
+                  手機兩欄、字 17px。購買卡在手機上隱藏，這裡就是手機版的重點摘要。 */}
               {meta.length ? (
-                <ul className="mt-[16px] flex flex-wrap gap-[10px] md:mt-[24px] md:gap-[32px]">
+                <ul className="mt-[16px] grid grid-cols-2 gap-x-[12px] gap-y-[10px] rounded-[18px] bg-cream-100 p-[16px] md:mt-[24px] md:flex md:flex-wrap md:gap-x-[28px] md:bg-transparent md:p-0">
                   {meta.map((m) => (
                     <li
                       key={m}
-                      className="rounded-pill bg-cream-100 px-[14px] py-[8px] text-[16px] text-brown-500 md:bg-transparent md:px-0 md:py-0 md:text-[17px]"
+                      className="flex items-start gap-[8px] text-[17px] leading-[1.5] text-brown-900"
                     >
+                      <svg
+                        viewBox="0 0 20 20"
+                        aria-hidden="true"
+                        className="mt-[3px] h-[18px] w-[18px] shrink-0 text-caramel-dk"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M4 10.5l4 4 8-9" />
+                      </svg>
                       {m}
                     </li>
                   ))}
                 </ul>
               ) : null}
+
+              {/* 手機沒有右欄購買卡（價格與按鈕在底部固定列），LINE 的出口補在這裡 */}
+              <p className="mt-[16px] text-[17px] leading-[1.8] text-brown-700 md:hidden">
+                不會線上付款也沒關係，
+                <a
+                  href={SITE.lineHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="-my-[7px] inline-block py-[11px] whitespace-nowrap text-brown-900 underline underline-offset-4 hover:text-caramel-dk"
+                >
+                  用 LINE 問我們
+                  <span className="sr-only">（會開啟 LINE）</span>
+                </a>
+                ，我們幫你處理。
+              </p>
             </div>
 
             {/* 右欄：sticky 購買卡（設計稿 393–405） */}
             <aside
               aria-label="購買資訊"
-              className="lg:col-start-2 lg:row-span-2 lg:row-start-1"
+              /* 手機（< 768）不顯示：價格與加入購物車在底部固定列、重點清單在上面，
+                 這張卡在手機上只會把同樣的東西再講一次 */
+              className="max-md:hidden lg:col-start-2 lg:row-span-2 lg:row-start-1"
             >
               <div className="rounded-card border border-sand-500 bg-cream-200 p-[24px] md:p-[30px] lg:sticky lg:top-[24px]">
                 <p className="flex items-baseline gap-[12px]">

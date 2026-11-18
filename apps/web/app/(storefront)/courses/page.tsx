@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { getProducts } from "@/lib/data";
-import { MobileActionBar } from "@/components/mobile-action-bar";
 import { SITE } from "@/lib/site";
 import {
   CourseFilter,
@@ -24,18 +23,16 @@ export default async function CoursesPage() {
 
   return (
     <>
-      <div className="pb-action-bar">
-        {/* 標題帶：設計稿 210–214（桌機）／289–293（手機），底色 token cream-100 */}
-        <section className="bg-cream-100 px-[22px] py-[32px] text-center md:px-[40px] md:py-[56px]">
-          <div className="mx-auto max-w-maxw">
-            {/* 這一頁列的是全部三類（預錄課程／線上直播／線下工作坊），
-                標題不能再只講「永久回放」—— 直播與工作坊不是那樣上的。 */}
-            <p className="t-eyebrow text-caramel-ink">COURSES</p>
-            <h1 className="mt-[10px] font-serif text-[28px] font-medium leading-[1.5] text-brown-900 md:mt-[12px] md:text-[36px] lg:text-[42px]">
+      <div>
+        {/* 標題帶。2026-11-18 手機版改版：縮成靠左的一行標題＋一句話，
+            讓分類鈕與第一門課進到第一屏（以前光標題帶就佔掉三分之一個螢幕）。 */}
+        <section className="bg-cream-100 px-[16px] pt-[22px] pb-[18px] md:px-[40px] md:pt-[48px] md:pb-[36px] md:text-center">
+          <div className="mx-auto max-w-[1080px]">
+            <h1 className="font-serif text-[26px] leading-[1.4] font-semibold text-brown-900 md:text-[38px]">
               找一堂適合你的課
             </h1>
-            <p className="t-body mx-auto mt-[10px] max-w-[640px] text-brown-500 md:mt-[12px]">
-              預錄課程買了就能永久回放，看不懂隨時倒帶重來；線上直播和線下工作坊有排好的時間，跟著老師一起練。
+            <p className="mt-[6px] text-[17px] leading-[1.75] text-pretty text-brown-700 md:mx-auto md:mt-[10px] md:max-w-[640px] md:text-[18px]">
+              先選上課方式：預錄課程可以永久回放，直播與工作坊跟老師一起練。
             </p>
           </div>
         </section>
@@ -73,8 +70,6 @@ export default async function CoursesPage() {
           </p>
         </div>
       </div>
-
-      <MobileActionBar href="/workshops" label="看直播與工作坊場次" />
     </>
   );
 }

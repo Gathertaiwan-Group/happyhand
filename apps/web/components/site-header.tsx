@@ -70,6 +70,9 @@ function Wordmark({ heightClass }: { heightClass: string }) {
  * 所以 iPad 直向（768）與橫向（1024）拿到的都是這一組「桌機」導覽，
  * 而它們是觸控裝置。原本這幾個連結只有 27px 高，手指很難點準。
  */
+/** 抽屜裡三類課程的一行說明，順序同 NAV_LINKS 前三項（預錄／直播／工作坊） */
+const CATEGORY_HINTS = ["買了永久回放，隨時看", "在家打開視訊跟著練", "跟老師面對面，小班制"];
+
 const navLinkClass =
   "flex min-h-[44px] items-center hover:text-caramel-dk";
 
@@ -288,8 +291,27 @@ export function SiteHeader() {
 
             {/* 選單項目多的時候要能捲，不然最下面的電話按鈕會被推出畫面 */}
             <nav aria-label="主選單" className="min-h-0 flex-1 overflow-y-auto">
+              {/* 2026-11-18 手機版改版：三類課程放在最上面一組，每一項多一行說明
+                  （預錄＝永久回放…），長輩不必先知道「預錄」是什麼意思。 */}
+              <p className="px-[20px] pt-[16px] pb-[4px] text-[16px] text-brown-500">找課程</p>
               <ul className="flex flex-col px-[20px]">
-                {NAV_LINKS.map((l) => (
+                {NAV_LINKS.slice(0, CATEGORY_NAV_COUNT).map((l, i) => (
+                  <li key={l.href} className="border-b border-sand-300">
+                    <Link
+                      href={l.href}
+                      onClick={() => setOpen(false)}
+                      className="flex min-h-[64px] flex-col justify-center py-[8px] text-brown-900"
+                    >
+                      <span className="text-[19px] leading-[1.4] font-medium">{l.label}</span>
+                      <span className="text-[16px] leading-[1.5] text-brown-500">
+                        {CATEGORY_HINTS[i]}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <ul className="mt-[8px] flex flex-col px-[20px]">
+                {NAV_LINKS.slice(CATEGORY_NAV_COUNT).map((l) => (
                   <li key={l.href} className="border-b border-sand-300">
                     <Link
                       href={l.href}
@@ -334,7 +356,7 @@ export function SiteHeader() {
                 塞一顆開對話框的按鈕語意不對。這一區本來就是「找不到要的東西？」，
                 AI 與真人是同一件事的兩條路，而且 shrink-0 永遠看得到、不用捲。 */}
             <div className="shrink-0 border-t border-sand-300 px-[20px] pt-[16px] pb-[calc(16px+env(safe-area-inset-bottom))]">
-              <p className="mb-[10px] text-[15px] text-brown-500">
+              <p className="mb-[10px] text-[16px] text-brown-500">
                 找不到要的東西？這兩個都可以問
               </p>
               <div className="flex flex-col gap-[10px]">

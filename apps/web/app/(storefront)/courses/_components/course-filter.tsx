@@ -1,12 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { buttonClass } from "@/components/ui/button";
 import { SITE } from "@/lib/site";
-import type { Product, ProductType } from "@/lib/content";
+import type { ProductWithSessions } from "@/lib/data";
+import {
+  CATEGORY_LABEL,
+  CATEGORY_ORDER,
+  categoriesOf,
+  categoryFromParams,
+  type CourseCategory,
+} from "@/lib/course-category";
 import { CourseCard } from "./course-card";
 
-type FilterKey = "all" | "new" | ProductType;
+type FilterKey = "all" | "new" | CourseCategory;
 
 /**
  * 「近期新課」用標籤決定，不是用建立時間。
@@ -17,41 +25,87 @@ type FilterKey = "all" | "new" | ProductType;
  */
 const NEW_TAG = "近期新課";
 
-const isNew = (p: Product) => p.tags.includes(NEW_TAG);
+const isNew = (p: ProductWithSessions) => p.tags.includes(NEW_TAG);
 
+/**
+ * 分類鈕：全部／近期新課／預錄課程／線上直播／線下工作坊。
+ * 後三個由型態 + 場次形式決定（lib/course-category.ts），不看自由標籤。
+ * 以前的「訂閱」併進預錄課程（2026-11-18 業主定的分類）。
+ */
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "全部" },
   { key: "new", label: NEW_TAG },
-  { key: "course", label: "線上課程" },
-  { key: "workshop", label: "工作坊" },
-  { key: "subscription", label: "訂閱" },
+  ...CATEGORY_ORDER.map((c) => ({ key: c, label: CATEGORY_LABEL[c] })),
 ];
+
+const matches = (p: ProductWithSessions, key: FilterKey) =>
+  key === "all" ||
+  (key === "new" ? isNew(p) : categoriesOf(p).includes(key));
 
 /**
  * 前端篩選（設計稿 215–221 桌機膠囊列、294–299 手機橫向捲動）
  * 手機 chip 列可橫向捲動，但捲軸藏起來、也不會讓整頁出現橫向捲軸。
+ *
+ * 網址帶 ?cat=recorded|live|onsite（導覽列「預錄課程」就是 /courses?cat=recorded）
+ * 會預先選好那一類；舊寫法 ?type=course|subscription 也吃。按鈕切換時用
+ * replaceState 同步網址，分享出去的連結會停在同一類。
+ * 伺服器端不讀 searchParams，頁面維持靜態 —— 用到 useSearchParams 的這個元件
+ * 在 page.tsx 包了 Suspense。
  */
-export function CourseFilter({ products }: { products: Product[] }) {
-  const [active, setActive] = useState<FilterKey>("all");
+export function CourseFilter({ products }: { products: ProductWithSessions[] }) {
+  const params = useSearchParams();
+  const fromUrl: FilterKey =
+    params.get("cat") === "new"
+      ? "new"
+      : (categoryFromParams((k) => params.get(k)) ?? "all");
+  return <CourseFilterView products={products} fromUrl={fromUrl} />;
+}
+
+/** Suspense 的 fallback（靜態 HTML）：先顯示全部，hydrate 後再套網址上的分類。 */
+export function CourseFilterFallback({
+  products,
+}: {
+  products: ProductWithSessions[];
+}) {
+  return <CourseFilterView products={products} fromUrl="all" />;
+}
+
+function CourseFilterView({
+  products,
+  fromUrl,
+}: {
+  products: ProductWithSessions[];
+  fromUrl: FilterKey;
+}) {
+  const [active, setActive] = useState<FilterKey>(fromUrl);
+
+  // 在同一頁上點導覽列（例如從 ?cat=recorded 回到 /courses）時跟著網址走
+  useEffect(() => {
+    setActive(fromUrl);
+  }, [fromUrl]);
+
+  const select = (key: FilterKey) => {
+    setActive(key);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("type");
+    url.searchParams.delete("format");
+    if (key === "all") url.searchParams.delete("cat");
+    else url.searchParams.set("cat", key);
+    window.history.replaceState(window.history.state, "", url);
+  };
 
   const filters = useMemo(
     () =>
       FILTERS.filter((f) => {
         if (f.key === "all") return true;
         // 沒有任何課屬於這一類時不顯示晶片，免得按了是空的
-        if (f.key === "new") return products.some(isNew);
-        return products.some((p) => p.type === f.key);
+        return products.some((p) => matches(p, f.key));
       }),
     [products],
   );
 
   const list = useMemo(
-    () =>
-      active === "all"
-        ? products
-        : active === "new"
-          ? products.filter(isNew)
-          : products.filter((p) => p.type === active),
+    () => products.filter((p) => matches(p, active)),
     [active, products],
   );
 
@@ -73,7 +127,7 @@ export function CourseFilter({ products }: { products: Product[] }) {
               key={f.key}
               type="button"
               aria-pressed={isActive}
-              onClick={() => setActive(f.key)}
+              onClick={() => select(f.key)}
               className={[
                 "inline-flex min-h-[56px] shrink-0 items-center rounded-pill border px-[26px] text-[17px] whitespace-nowrap transition-colors duration-200",
                 isActive

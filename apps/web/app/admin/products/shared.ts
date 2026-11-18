@@ -16,9 +16,15 @@
 export const PRODUCT_TYPES = ["course", "workshop", "subscription"] as const;
 export type ProductType = (typeof PRODUCT_TYPES)[number];
 
+/**
+ * 2026-11-18 前台分類改成「預錄課程／線上直播／線下工作坊」三類（lib/course-category.ts）。
+ * 後台的型態跟著改字：course 以前叫「線上課程」，但線上直播也是線上，
+ * 業主在前台看到「預錄課程」、後台卻寫「線上課程」會以為是兩件事。
+ * workshop 不分直播或線下 —— 那是每一場的「上課形式」決定的 —— 所以寫成「直播／工作坊」。
+ */
 export const PRODUCT_TYPE_LABEL: Record<ProductType, string> = {
-  course: "線上課程",
-  workshop: "工作坊",
+  course: "預錄課程",
+  workshop: "直播／工作坊",
   subscription: "訂閱制",
 };
 

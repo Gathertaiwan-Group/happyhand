@@ -1,3 +1,4 @@
+import { CATEGORY_HREF, CATEGORY_LABEL } from "@/lib/course-category";
 /** 公司與品牌資訊 — 來源：design_handoff_happyhands/CONTENT.md，請照抄不要改寫 */
 export const SITE = {
   /**
@@ -60,12 +61,20 @@ export const SITE = {
     "本課程為自我保健練習，非醫療行為，不能取代專業醫療診斷與治療。",
 } as const;
 
+/**
+ * 前三個是課程分類（業主 2026-11-18：預錄課程／線上直播／線下工作坊），
+ * 網址與文字來自 lib/course-category.ts，跟 /courses 的篩選鈕同一份。
+ * 桌機導覽把前 CATEGORY_NAV_COUNT 個放在字標左邊。
+ */
 export const NAV_LINKS = [
-  { href: "/courses", label: "線上課程" },
-  { href: "/workshops", label: "工作坊" },
+  { href: CATEGORY_HREF.recorded, label: CATEGORY_LABEL.recorded },
+  { href: CATEGORY_HREF.live, label: CATEGORY_LABEL.live },
+  { href: CATEGORY_HREF.onsite, label: CATEGORY_LABEL.onsite },
   { href: "/teachers", label: "關於老師" },
   { href: "/faq", label: "聯絡我們" },
 ] as const;
+
+export const CATEGORY_NAV_COUNT = 3;
 
 export function formatPrice(twd: number) {
   return `$${twd.toLocaleString("en-US")}`;

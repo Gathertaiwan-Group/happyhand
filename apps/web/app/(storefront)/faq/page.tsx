@@ -24,7 +24,7 @@ const GROUPS: { title: string; picks: string[]; extra: AccordionItem[] }[] = [
     picks: [
       "我沒有基礎，也沒有運動習慣，可以學嗎？",
       "膝蓋或腰不好，做得來嗎？",
-      "線上課程可以看多久？",
+      "預錄課程可以看多久？",
     ],
     extra: [
       {

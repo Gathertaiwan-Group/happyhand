@@ -125,7 +125,7 @@ export default async function HomePage() {
               size="lg"
               className="w-full md:w-auto"
             >
-              預約工作坊
+              預約直播或工作坊
             </LinkButton>
           </div>
         </div>

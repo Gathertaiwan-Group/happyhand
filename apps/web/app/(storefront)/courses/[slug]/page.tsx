@@ -91,10 +91,10 @@ export default async function CourseDetailPage({
             className="t-caption py-[8px] text-brown-500 md:py-[12px]"
           >
             <Link
-              href="/courses"
+              href="/courses?cat=recorded"
               className="inline-block py-[11px] text-brown-700 underline-offset-4 hover:text-caramel-dk hover:underline"
             >
-              線上課程
+              預錄課程
             </Link>
             <span aria-hidden className="px-[6px] text-brown-300">
               ／

@@ -3,7 +3,7 @@ import "server-only";
 import { FAQS } from "@/lib/content";
 import { getProducts, getWorkshopSessions, twDate, timeRange } from "@/lib/data";
 import { SITE, formatPrice } from "@/lib/site";
-import { placeText } from "@/lib/session-format";
+import { hasOnline, placeText } from "@/lib/session-format";
 
 /**
  * 小幫手的知識來源。
@@ -34,9 +34,13 @@ const MEDICAL_GUARDRAIL = `【絕對不可以違反的一條】
 
 const FACTS = `你是「快樂手 Happy Healing Hands」官網右下角的線上小幫手，代表這個品牌回答訪客的問題。
 
-【品牌】快樂手是教「仁神術（JSJ, Jin Shin Jyutsu）」的線上課程與實體工作坊平台，由好日子股份有限公司經營。
+【品牌】快樂手是教「仁神術（JSJ, Jin Shin Jyutsu）」的課程平台，由好日子股份有限公司經營。
 【仁神術是什麼】一門源自日本的自我照顧方法，用雙手輕輕放在身上特定位置，幫助自己放鬆、覺察身體。不用力氣、不用器材、坐著就能做，很多同學是六十幾歲才開始學的。
-【上課方式】線上課程買了就永久回放，登入「我的學習」隨時看、可以重複看。工作坊大多是實體小班（八到十人），老師會一個一個看過去，工具跟講義都準備好，空手來就行。場次標示「線上」的是用視訊上課，上課連結會在開課前用 Email 或 LINE 傳給學員，沒有地址可以去。
+【課程分三類】網站上的課分成三類，介紹課程時一律用這三個名稱：
+第一，預錄課程：錄好的影片課（含節氣訂閱計畫），買了就永久回放，登入「我的學習」隨時看、可以重複看，不用配合時間。
+第二，線上直播：排好日期時間的視訊課，在家打開視訊跟著老師做，上課連結會在開課前用 Email 或 LINE 傳給學員，沒有地址可以去。直播課不是錄影課，不要說它可以永久回放；有沒有錄影請對方用 LINE 問。
+第三，線下工作坊：到教室上的實體小班（八到十人），老師會一個一個看過去，工具跟講義都準備好，空手來就行。
+標示「線上＋實體」的場次兩種都可以參加。
 【付款】信用卡（線上刷卡）、ATM 匯款、或用 LINE 請我們代訂。ATM 匯款是結帳時選「ATM 匯款」會顯示帳號，我們對帳完成就開通。
 【買了怎麼看】網站右上角「我的學習」→ 用下單時填的 Email 登入 → 密碼是在「請設定密碼」那封信裡自己設定的。沒設定過或忘記，在登入頁按「忘記密碼？」。
 【課本】有實體課本的商品，付款完成後宅配寄出，通常三到五個工作天會到。
@@ -52,7 +56,7 @@ const STYLE = `【怎麼講話】
 - 不要每句都推銷。對方只是想問問題時就好好回答。`;
 
 const ACTIONS = `【幫忙找課、帶去報名】
-訪客描述狀況或需求時（想學基礎、想面對面上課、家人要用、預算…），從下面「目前開放的課程與場次」裡挑最合適的一到兩個推薦，講清楚為什麼適合他，並附上網址讓他直接點進去看。
+訪客描述狀況或需求時（想學基礎、想隨時看、想跟老師直播、想面對面上課、家人要用、預算…），從下面「目前開放的課程與場次」裡挑最合適的一到兩個推薦，講清楚為什麼適合他，並附上網址讓他直接點進去看。
 - 網址一定要照抄下面清單裡給你的那一個，不可以自己拼湊或改寫。
 - 清單裡沒有的課程、價格、日期，一律不可以講。真的沒有合適的就說目前沒有，請他用 LINE 問。
 - 已額滿的場次不要推薦，可以告訴他用 LINE 登記候補。
@@ -108,11 +112,22 @@ export async function catalogText(): Promise<string> {
     );
   });
 
-  return `【線上課程】
-${courseLines.length ? courseLines.join("\n") : "・目前沒有開放購買的線上課程。"}
+  const live = sessionLines.filter((_, i) => hasOnline(sessions[i].format));
+  const onsite = sessionLines.filter((_, i) => sessions[i].format !== "online");
 
-【工作坊場次】
-${sessionLines.length ? sessionLines.join("\n") : "・目前沒有開放報名的場次，請訪客用 LINE 詢問下一梯。"}`;
+  /*
+    分類跟前台同一套規則（lib/course-category.ts）：預錄課程＝course/subscription；
+    場次照 format 分線上直播／線下工作坊，混合場次兩邊都列。
+    讀脈入門課這種「預錄課程另外開的場次」也照場次形式列在對應的那一類。
+  */
+  return `【預錄課程】（可以隨時看、永久回放）
+${courseLines.length ? courseLines.join("\n") : "・目前沒有開放購買的預錄課程。"}
+
+【線上直播場次】（排好時間的視訊課）
+${live.length ? live.join("\n") : "・目前沒有開放報名的線上直播，請訪客用 LINE 詢問下一梯。"}
+
+【線下工作坊場次】（到教室上的實體課）
+${onsite.length ? onsite.join("\n") : "・目前沒有開放報名的線下工作坊，請訪客用 LINE 詢問下一梯。"}`;
 }
 
 const FAQ_TEXT = FAQS.map((f) => `Q：${f.q}\nA：${f.a}`).join("\n");

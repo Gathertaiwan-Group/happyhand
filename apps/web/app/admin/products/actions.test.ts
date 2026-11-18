@@ -160,7 +160,7 @@ test("新增成功 → 編輯頁 ?msg=created，稽核與清快取", async () =>
   assert.equal(o.dest, "/admin/products/NEW1?msg=created");
   assert.equal(o.audits.length, 1);
   assert.equal(o.audits[0].action, "product.create");
-  assert.equal(o.audits[0].summary, "新增工作坊「仁神術入門」（renshen-intro）");
+  assert.equal(o.audits[0].summary, "新增直播／工作坊「仁神術入門」（renshen-intro）");
   assert.deepEqual(o.revalidated, [
     "/admin/courses",
     "/admin/workshops",

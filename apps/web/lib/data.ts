@@ -34,6 +34,11 @@ export type ProductWithSessions = Product & {
   id?: string;
   blocks?: ProductBlock[];
   sessions?: (WorkshopSession & { id?: string; status?: string })[];
+  /**
+   * 判斷前台分類（線上直播／線下工作坊）用的場次形式，null 已正規化成 onsite。
+   * 怎麼挑場次見 sessionFormatsOf()。分類規則見 lib/course-category.ts。
+   */
+  sessionFormats?: SessionFormat[];
 };
 
 type LessonRow = {
@@ -55,7 +60,10 @@ export async function getProducts(): Promise<ProductWithSessions[]> {
       .from("products")
       // 一併撈單元：舊版的 mapProduct() 寫死 lessons 取自靜態檔，
       // 導致列表頁的「共 N 堂」永遠不受資料庫控制。
-      .select(`${PRODUCT_SELECT}, course_lessons(id, title, duration_sec, free_preview, sort_order)`)
+      // 場次只拿 format/status/starts_at，給前台分類用（線上直播／線下工作坊）。
+      .select(
+        `${PRODUCT_SELECT}, course_lessons(id, title, duration_sec, free_preview, sort_order), workshop_sessions(format, status, starts_at)`,
+      )
       .eq("is_published", true)
       .order("sort_order", { ascending: true });
 
@@ -258,6 +266,32 @@ export async function getWorkshopSessions(): Promise<WorkshopRow[]> {
   }
 }
 
+/**
+ * 一門課的場次形式，用來分「線上直播／線下工作坊」。
+ *
+ * 先看還在賣的場次（open/full 且還沒開始，跟 getWorkshopSessions() 同一條界線）——
+ * 分類要跟 /workshops 實際列出來的場次一致。一場都沒有的話退回看所有沒取消的
+ * 場次：只開過線上梯次、目前空檔的直播課，不該因為暫時沒場次就跳去「線下工作坊」。
+ * 還是沒有就回空陣列（categoriesOf() 會把它歸線下工作坊）。
+ */
+function sessionFormatsOf(rows: unknown): SessionFormat[] {
+  const list = (Array.isArray(rows) ? rows : []) as {
+    format?: unknown;
+    status?: string | null;
+    starts_at?: string | null;
+  }[];
+  const now = new Date().toISOString();
+  const upcoming = list.filter(
+    (s) =>
+      (s.status === "open" || s.status === "full") &&
+      (s.starts_at ?? "") >= now,
+  );
+  const pick = upcoming.length
+    ? upcoming
+    : list.filter((s) => s.status !== "cancelled");
+  return [...new Set(pick.map((s) => normalizeFormat(s.format)))];
+}
+
 function mapProduct(row: Record<string, unknown>): ProductWithSessions {
   const lessons = ((row.course_lessons as LessonRow[] | null) ?? [])
     .slice()
@@ -294,6 +328,7 @@ function mapProduct(row: Record<string, unknown>): ProductWithSessions {
     asks_intake: Boolean(row.asks_intake),
     cover_url: (row.cover_url as string | null) ?? null,
     lessons: lessons.length ? lessons : undefined,
+    sessionFormats: sessionFormatsOf(row.workshop_sessions),
   };
 }
 

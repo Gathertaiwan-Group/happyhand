@@ -140,7 +140,7 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
           href="/workshops"
           className="inline-flex min-h-[56px] items-center text-[17px] text-brown-700 transition-colors duration-200 hover:text-caramel-ink"
         >
-          <span aria-hidden="true">←&nbsp;</span>回工作坊場次
+          <span aria-hidden="true">←&nbsp;</span>回場次列表
         </Link>
 
         <Figure

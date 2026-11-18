@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { NAV_LINKS, SITE } from "@/lib/site";
+import { CATEGORY_NAV_COUNT, NAV_LINKS, SITE } from "@/lib/site";
 import { useCart } from "@/components/cart-provider";
 import { lockBodyScroll } from "@/lib/scroll-lock";
 import { useHelper } from "@/components/ai/helper-provider";
@@ -126,13 +126,18 @@ export function SiteHeader() {
       <header className="sticky top-0 z-50 border-b border-sand-300 bg-white/96 backdrop-blur-sm">
         {/* 桌機：置中對稱的導覽 + 靠右的功能區 */}
         <div className="relative mx-auto hidden max-w-maxw md:block">
-          {/* gap 在 md（768–1279）收窄：那個區間要同時放下五個導覽項目與右邊的
-              功能區，用 40px 的話「聯絡我們」會被壓在「我的學習」底下。 */}
+          {/* gap 在 md（768–1279）收窄：那個區間要同時放下導覽項目與右邊的
+              功能區，用 40px 的話「聯絡我們」會被壓在「我的學習」底下。
+
+              2026-11-18 課程分類改成三類後是「三個分類｜字標｜兩個連結」共六項。
+              768–1023（平板直向）整排置中會蓋到右邊的功能區，所以那一段
+              字縮到 17px、間距 16px，並在右側讓出功能區的寬度（pr-[150px]）
+              —— 整排略微偏左，但不會疊字、不會換行。 */}
           <nav
             aria-label="主選單"
-            className="flex items-center justify-center gap-[22px] px-[40px] py-[22px] text-[18px] whitespace-nowrap text-brown-700 lg:gap-[40px]"
+            className="flex items-center justify-center gap-[22px] px-[40px] py-[22px] text-[18px] whitespace-nowrap text-brown-700 max-admin:gap-[16px] max-admin:pr-[150px] max-admin:text-[17px] lg:gap-[40px]"
           >
-            {NAV_LINKS.slice(0, 2).map((l) => (
+            {NAV_LINKS.slice(0, CATEGORY_NAV_COUNT).map((l) => (
               <Link key={l.href} href={l.href} className={navLinkClass}>
                 {l.label}
               </Link>
@@ -144,7 +149,7 @@ export function SiteHeader() {
             >
               <Wordmark heightClass="h-[34px]" />
             </Link>
-            {NAV_LINKS.slice(2).map((l) => (
+            {NAV_LINKS.slice(CATEGORY_NAV_COUNT).map((l) => (
               <Link key={l.href} href={l.href} className={navLinkClass}>
                 {l.label}
               </Link>
@@ -158,7 +163,7 @@ export function SiteHeader() {
 
             用絕對定位而不是把它塞進 nav 裡：設計稿的桌機版是
             「兩個連結｜字標｜兩個連結」的置中對稱，加進去會把字標推歪。
-            這樣視覺維持對稱，功能補回來。
+            這樣視覺維持對稱，功能補回來。（分類改成三類之後左三右二，字標略偏右。）
           */}
           <div className="absolute inset-y-0 right-[40px] flex items-center gap-[6px]">
             {/* md（768–1279）只放圖示，lg 以上才顯示文字：

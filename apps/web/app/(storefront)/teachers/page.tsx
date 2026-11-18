@@ -62,18 +62,18 @@ export default async function TeachersPage() {
         <div className="mx-auto max-w-[860px] px-[20px] py-[40px] text-center md:px-[40px] md:py-[64px]">
           <h2 className="t-h2">想上她的課</h2>
           <p className="t-body mx-auto mt-[14px] max-w-[580px] text-pretty text-brown-500 md:mt-[18px]">
-            線上課程隨時都能開始，買了之後永久回放，看幾次都可以；想當面學的話，台北每個月都有實體工作坊。
+            預錄課程隨時都能開始，買了之後永久回放，看幾次都可以；想跟她一起練的話，有線上直播，也有台北的線下工作坊。
           </p>
 
           <div className="mt-[22px] flex flex-col gap-[10px] md:mt-[28px] md:flex-row md:justify-center md:gap-[16px]">
             <LinkButton
-              href="/courses"
+              href="/courses?cat=recorded"
               variant="primary"
               size="lg"
               fullWidth
               className="md:w-auto"
             >
-              看線上課程
+              看預錄課程
             </LinkButton>
             <LinkButton
               href="/workshops"
@@ -82,7 +82,7 @@ export default async function TeachersPage() {
               fullWidth
               className="md:w-auto"
             >
-              看實體工作坊
+              看直播與工作坊
             </LinkButton>
           </div>
         </div>

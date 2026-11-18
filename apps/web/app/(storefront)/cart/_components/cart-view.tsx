@@ -8,8 +8,9 @@ import { SITE, formatPrice } from "@/lib/site";
 import { CheckoutSteps } from "@/app/(storefront)/checkout/_components/checkout-steps";
 
 const TYPE_LABEL: Record<CartItem["type"], string> = {
-  course: "線上課程",
-  workshop: "工作坊",
+  // 購物車品項帶不到場次形式，workshop 這裡不分直播／線下，只說是哪一種買法
+  course: "預錄課程",
+  workshop: "報名場次",
 };
 
 /** 同一件商品的唯一鍵（工作坊要連場次一起看） */

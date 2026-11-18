@@ -63,24 +63,24 @@ export function HomeWorkshops({
     >
       <div className="mx-auto max-w-[1080px]">
         <div className="text-center">
-          <p className="t-eyebrow text-caramel-ink">WORKSHOPS</p>
+          <p className="t-eyebrow text-caramel-ink">LIVE &amp; WORKSHOPS</p>
           <h2 id="home-workshops-title" className="t-h2 mt-[10px]">
-            也可以跟老師面對面練一次
+            也可以跟著老師，一起練一次
           </h2>
           <p className="t-body mx-auto mt-[14px] max-w-[620px] text-pretty text-brown-500">
-            小班制，八到十個人，老師會一個一個看過去。工具跟講義都準備好了，你空手來就行。
+            線上直播在家打開視訊就能跟著做；線下工作坊是小班制，八到十個人，老師會一個一個看過去，工具跟講義都準備好，你空手來就行。
           </p>
           {/* 同 /workshops：首頁列出的場次裡有線上的，才補這一句。 */}
           {upcoming.some((s) => hasOnline(s.format)) && (
             <p className="t-body mx-auto mt-[8px] max-w-[620px] text-pretty text-brown-500">
-              標示「線上」的場次用視訊上課，上課連結會在開課前傳給你。
+              標示「線上」的場次，上課連結會在開課前用 Email 或 LINE 傳給你。
             </p>
           )}
         </div>
 
         <div className="mt-[24px] md:mt-[36px]">
           {upcoming.length === 0 ? (
-            <NoSessions message="最近沒有安排實體場次。想知道下一場什麼時候開，用 LINE 問我們，開課前會先告訴你。" />
+            <NoSessions message="最近沒有安排直播或工作坊。想知道下一場什麼時候開，用 LINE 問我們，開課前會先告訴你。" />
           ) : (
             <ul className="flex list-none flex-col gap-[14px]">
               {upcoming.map((s) => (

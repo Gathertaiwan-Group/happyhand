@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Figure } from "@/components/ui/placeholder";
 import { buttonClass } from "@/components/ui/button";
 import { formatPrice } from "@/lib/site";
-import type { Product } from "@/lib/content";
+import type { ProductWithSessions } from "@/lib/data";
+import { cardTagLine } from "@/lib/course-category";
 
 /**
  * 課程卡（設計稿 195–466 行 /courses 區塊、桌機 223–232、手機 301–309）
@@ -10,7 +11,7 @@ import type { Product } from "@/lib/content";
  * hover 上浮 4px + shadow-card。
  * 整張卡可點：CTA 用 `after:inset-0` 撐滿卡片，但語意上仍只有一個連結。
  */
-export function CourseCard({ product }: { product: Product }) {
+export function CourseCard({ product }: { product: ProductWithSessions }) {
   const isWorkshop = product.type === "workshop";
   const href = isWorkshop ? "/workshops" : `/courses/${product.slug}`;
   const cta = isWorkshop
@@ -29,7 +30,10 @@ export function CourseCard({ product }: { product: Product }) {
       />
 
       <div className="flex flex-1 flex-col p-[20px] md:p-[24px]">
-        <p className="t-caption text-caramel-ink">{product.tags.join("・")}</p>
+        {/* 第一個詞是分類（預錄課程／線上直播／線下工作坊），由型態與場次形式產生；
+            後台自由標籤裡的分類字眼（「線上課程」「實體工作坊」…）不再照印，
+            免得跟分類打架。見 lib/course-category.ts */}
+        <p className="t-caption text-caramel-ink">{cardTagLine(product)}</p>
 
         <h3 className="mt-[8px] font-serif text-[19px] leading-[1.5] text-brown-900 md:mt-[10px] md:text-[21px] md:leading-[1.55]">
           {product.title}

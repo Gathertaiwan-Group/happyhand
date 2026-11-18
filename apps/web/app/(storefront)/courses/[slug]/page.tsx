@@ -84,7 +84,7 @@ export default async function CourseDetailPage({
   return (
     <>
       <div className="pb-action-bar">
-        <div className="mx-auto max-w-maxw px-[20px] md:px-[40px]">
+        <div className="fab-safe mx-auto max-w-maxw px-[20px] md:px-[40px]">
           {/* 麵包屑：設計稿 353 行 */}
           <nav
             aria-label="麵包屑"

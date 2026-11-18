@@ -145,7 +145,7 @@ function CourseFilterView({
         目前顯示 {list.length} 項課程
       </p>
 
-      <div className="mx-auto grid max-w-[1180px] grid-cols-1 gap-[14px] px-[20px] pt-[20px] pb-[32px] md:grid-cols-2 md:gap-[24px] md:px-[40px] md:pt-[36px] md:pb-[64px] lg:grid-cols-3">
+      <div className="fab-safe mx-auto grid max-w-[1180px] grid-cols-1 gap-[14px] px-[20px] pt-[20px] pb-[32px] md:grid-cols-2 md:gap-[24px] md:px-[40px] md:pt-[36px] md:pb-[64px] lg:grid-cols-3">
         {list.map((p) => (
           <CourseCard key={p.slug} product={p} />
         ))}

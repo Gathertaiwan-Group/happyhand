@@ -183,7 +183,7 @@ export default async function WorkshopDetailPage({ params }: PageProps) {
       {/* 場次列表 */}
       <section
         id="sessions"
-        className="bg-cream-100 px-[20px] py-[32px] md:px-[40px] md:py-[48px]"
+        className="fab-safe bg-cream-100 px-[20px] py-[32px] md:px-[40px] md:py-[48px]"
       >
         <div className="mx-auto max-w-maxw">
           <h2 className="t-h2">場次與報名</h2>

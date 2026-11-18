@@ -63,12 +63,12 @@ export function HomeSessions({
   return (
     <section
       aria-labelledby="home-sessions-title"
-      className="border-t border-sand-300 bg-cream-100 px-[20px] pt-[24px] pb-[36px] md:px-[40px] md:pt-[40px] md:pb-[64px]"
+      className="fab-safe border-t border-sand-300 bg-cream-100 px-[20px] pt-[16px] pb-[36px] md:px-[40px] md:pt-[40px] md:pb-[64px]"
     >
       <div className="mx-auto max-w-[1080px]">
         <div className="text-center">
-          <p className="t-eyebrow text-caramel-ink">LIVE &amp; WORKSHOPS</p>
-          <h2 id="home-sessions-title" className="t-h2 mt-[6px]">
+          <p className="t-eyebrow hidden text-caramel-ink md:block">LIVE &amp; WORKSHOPS</p>
+          <h2 id="home-sessions-title" className="t-h2 md:mt-[6px]">
             近期開課，跟老師一起練
           </h2>
         </div>
@@ -76,7 +76,7 @@ export function HomeSessions({
         <div
           role="tablist"
           aria-label="課程類別"
-          className="mt-[16px] grid grid-cols-2 gap-[10px] md:mx-auto md:mt-[24px] md:max-w-[560px] md:gap-[14px]"
+          className="mt-[10px] grid grid-cols-2 gap-[10px] md:mx-auto md:mt-[24px] md:max-w-[560px] md:gap-[14px]"
         >
           {TABS.map((t) => {
             const list = inTab(t);
@@ -118,7 +118,7 @@ export function HomeSessions({
           id="home-sessions-panel"
           role="tabpanel"
           aria-labelledby={`home-tab-${tab}`}
-          className="mt-[16px] md:mt-[24px]"
+          className="mt-[12px] md:mt-[24px]"
         >
           {all.length === 0 ? (
             <NoSessions message={EMPTY[tab]} />

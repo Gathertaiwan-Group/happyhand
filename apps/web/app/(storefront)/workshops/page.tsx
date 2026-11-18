@@ -68,7 +68,7 @@ export default async function WorkshopsPage() {
         <WorkshopsBrowser {...browserProps} />
       </Suspense>
 
-      <section className="px-[20px] pt-[14px] pb-[28px] md:px-[40px] md:pb-[48px]">
+      <section className="fab-safe px-[20px] pt-[14px] pb-[28px] md:px-[40px] md:pb-[48px]">
         <div className="mx-auto max-w-maxw">
           {/* 包班詢問（設計稿 L540–546） */}
           <div className="flex flex-col gap-[16px] rounded-sm border border-dashed border-sand-400 p-[20px] md:flex-row md:items-center md:justify-between md:gap-[24px] md:p-[26px_30px]">

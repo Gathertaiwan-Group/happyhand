@@ -225,14 +225,15 @@ export function HelperWidget() {
           type="button"
           aria-haspopup="dialog"
           onClick={openHelper}
-          className={`fixed right-[28px] z-40 hidden min-h-[56px] items-center gap-[8px] rounded-full bg-caramel-ink px-[20px] text-[17px] font-medium text-white shadow-[0_6px_20px_rgba(74,53,36,0.28)] transition-colors duration-200 hover:bg-caramel-dk md:flex ${
+          aria-label="有問題？問小幫手"
+          className={`fixed right-[16px] z-40 hidden h-[76px] w-[76px] flex-col items-center justify-center gap-[2px] rounded-[24px] bg-caramel-ink text-[16px] leading-[1.3] font-medium text-white shadow-[0_6px_20px_rgba(74,53,36,0.28)] transition-colors duration-200 hover:bg-caramel-dk md:flex ${
             overBottomNav
-              ? "bottom-[calc(88px+env(safe-area-inset-bottom))] lg:bottom-[28px]"
-              : "bottom-[28px]"
+              ? "bottom-[calc(88px+env(safe-area-inset-bottom))] lg:bottom-[20px]"
+              : "bottom-[20px]"
           }`}
         >
-          <ChatIcon className="h-[22px] w-[22px] shrink-0" />
-          有問題？問小幫手
+          <ChatIcon className="h-[24px] w-[24px] shrink-0" />
+          <span aria-hidden="true">問小幫手</span>
         </button>
       )}
 

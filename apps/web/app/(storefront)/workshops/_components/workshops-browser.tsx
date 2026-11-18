@@ -178,7 +178,7 @@ function Inner({
 
       {/* 場次列表（設計稿 L491–539 桌機／L569–609 手機）。
           包班詢問留在 page.tsx，緊接在這之後。 */}
-      <div className="px-[20px] pt-[28px] md:px-[40px] md:pt-[48px]">
+      <div className="fab-safe px-[20px] pt-[28px] md:px-[40px] md:pt-[48px]">
         <div className="mx-auto max-w-maxw">
           <h2 className="sr-only">近期場次</h2>
           {list.length === 0 ? (

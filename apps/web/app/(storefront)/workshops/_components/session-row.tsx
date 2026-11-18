@@ -23,6 +23,7 @@ export function SessionRow({
   showTitle = true,
   isNew = false,
   showProductName = false,
+  compact = false,
 }: {
   session: WorkshopRow;
   /** 有值時標題可以點進單場詳情；沒有就是純文字 */
@@ -36,6 +37,11 @@ export function SessionRow({
    * 光寫「初階（第 1–4 堂）」看不出是哪一門課。
    */
   showProductName?: boolean;
+  /**
+   * 手機版壓縮排版（首頁用）：價格與報名鈕併成同一排，一列的高度少約 60px，
+   * 手機第一屏才放得下「完整第一場＋我要報名」。桌機版面不受影響。
+   */
+  compact?: boolean;
 }) {
   const { month, day, weekday } = twDate(session.starts_at);
   // 扣掉未付款訂單佔住的位子，跟 /api/orders 的容量檢查用同一個定義
@@ -76,7 +82,7 @@ export function SessionRow({
     <p
       className={
         showTitle
-          ? "mt-[12px] min-w-0 text-[17px] leading-[1.8] text-brown-500 md:col-start-2 md:row-start-2 md:mt-[8px]"
+          ? `min-w-0 text-[17px] leading-[1.8] text-brown-500 md:col-start-2 md:row-start-2 md:mt-[8px] ${compact ? "mt-[8px] max-md:w-full" : "mt-[12px]"}`
           : "min-w-0 text-[17px] leading-[1.8] text-brown-500 md:col-start-2 md:row-span-2 md:row-start-1"
       }
     >
@@ -114,9 +120,9 @@ export function SessionRow({
   );
 
   return (
-    <li className="rounded-sm bg-cream-400 p-[20px] md:grid md:grid-cols-[96px_1fr_auto_auto] md:grid-rows-[auto_auto] md:items-center md:gap-x-[20px] md:p-[24px_30px] lg:gap-x-[28px]">
+    <li className={`rounded-sm bg-cream-400 p-[20px] ${compact ? "max-md:flex max-md:flex-wrap max-md:items-center max-md:gap-x-[12px]" : ""} md:grid md:grid-cols-[96px_1fr_auto_auto] md:grid-rows-[auto_auto] md:items-center md:gap-x-[20px] md:p-[24px_30px] lg:gap-x-[28px]`}>
       {/* 日期方塊與標題：手機同一行；桌機 display:contents 讓兩者各自成為 grid item */}
-      <div className="flex items-center gap-[14px] md:contents">
+      <div className={`flex items-center gap-[14px] md:contents ${compact ? "max-md:w-full" : ""}`}>
         <div className="shrink-0 rounded-input bg-white px-[12px] py-[8px] text-center md:col-start-1 md:row-span-2 md:row-start-1 md:bg-transparent md:p-0">
           <div className="t-micro tracking-[0.1em] text-brown-300">
             {monthLabel}
@@ -161,7 +167,7 @@ export function SessionRow({
       {showTitle && locationLine}
 
       {/* 價格與名額 */}
-      <div className="mt-[12px] flex items-baseline gap-[12px] md:col-start-3 md:row-span-2 md:row-start-1 md:mt-0 md:block md:text-right">
+      <div className={`${compact ? "mt-[8px] min-w-0 flex-1" : "mt-[12px]"} flex items-baseline gap-[12px] md:col-start-3 md:row-span-2 md:row-start-1 md:mt-0 md:block md:text-right`}>
         <span className="font-serif text-[23px] font-semibold text-caramel-ink md:text-[24px]">
           {formatPrice(session.price)}
         </span>
@@ -180,7 +186,7 @@ export function SessionRow({
 
       {/* CTA */}
       {/* min-w 讓「已額滿・我要候補」與「我要報名」佔一樣寬的欄，各列價格才會對齊 */}
-      <div className="mt-[14px] md:col-start-4 md:row-span-2 md:row-start-1 md:mt-0 md:flex md:min-w-[208px] md:justify-end">
+      <div className={`${compact ? "mt-[8px]" : "mt-[14px]"} md:col-start-4 md:row-span-2 md:row-start-1 md:mt-0 md:flex md:min-w-[208px] md:justify-end`}>
         {soldOut || !canRegister ? (
           <a
             href={SITE.lineHref}
@@ -189,7 +195,7 @@ export function SessionRow({
             className={buttonClass({
               variant: "dark",
               className:
-                "w-full whitespace-nowrap bg-sand-400! hover:bg-caramel-ink! md:w-auto",
+                `w-full whitespace-nowrap bg-sand-400! hover:bg-caramel-ink! md:w-auto${compact ? " max-md:w-auto!" : ""}`,
             })}
           >
             {/* 視覺文案與朗讀文案分開：畫面看得出額滿，語音直接說可以用 LINE 候補 */}
@@ -210,6 +216,7 @@ export function SessionRow({
             price={session.price}
             sessionLabel={sessionLabel}
             asksIntake={session.asksIntake}
+            className={compact ? "max-md:w-auto!" : ""}
             ariaLabel={`我要報名：${headline} ${dateText}${tag ? `（${tag}）` : ""}`}
           />
         )}

@@ -90,6 +90,7 @@ export default async function HomePage() {
           session={s}
           isNew={isNew}
           showProductName
+          compact
           detailHref={workshopSlugs.has(s.slug) ? `/workshops/${s.slug}` : null}
         />
       ),
@@ -119,11 +120,11 @@ export default async function HomePage() {
           場次現在就在正下方，預錄課程在下一段，不需要再重複。 */}
       <section
         aria-labelledby="hero-title"
-        className="relative overflow-hidden px-[22px] pt-[20px] pb-[22px] text-center md:px-[40px] md:pt-[40px] md:pb-[36px]"
+        className="relative overflow-hidden px-[22px] pt-[12px] pb-[12px] text-center md:px-[40px] md:pt-[40px] md:pb-[36px]"
       >
         <div
           aria-hidden="true"
-          className="halo-bg pointer-events-none absolute top-[-60px] left-1/2 h-[340px] w-[340px] -translate-x-1/2 rounded-full md:top-[-120px] md:h-[520px] md:w-[520px]"
+          className="halo-bg pointer-events-none absolute top-[-60px] left-1/2 h-[280px] w-[280px] -translate-x-1/2 rounded-full md:top-[-120px] md:h-[520px] md:w-[520px]"
         />
         <div className="relative mx-auto max-w-maxw">
           {/* 品牌標記。logo-mark.png 是去背過的墨圈，四周留了 6% 白邊，
@@ -134,15 +135,15 @@ export default async function HomePage() {
             width={691}
             height={691}
             priority
-            sizes="(min-width: 768px) 88px, 60px"
-            className="mx-auto h-[60px] w-[60px] md:h-[88px] md:w-[88px]"
+            sizes="(min-width: 768px) 88px, 48px"
+            className="mx-auto h-[48px] w-[48px] md:h-[88px] md:w-[88px]"
           />
-          <h1 id="hero-title" className="t-h1 pt-[10px] md:pt-[14px]">
+          <h1 id="hero-title" className="t-h1 pt-[4px] md:pt-[14px]">
             身體會記得
             <br className="md:hidden" />
             被好好對待的感覺
           </h1>
-          <p className="t-body mx-auto mt-[6px] max-w-[640px] text-pretty text-brown-500 md:mt-[10px] md:max-w-[880px]">
+          <p className="t-body mx-auto mt-[6px] hidden max-w-[640px] md:block text-pretty text-brown-500 md:mt-[10px] md:max-w-[880px]">
             柳樺老師的仁神術（JSJ）練習。不需要體力、不需要器材，把手放在自己身上，慢慢把緊繃的地方鬆開。
           </p>
         </div>

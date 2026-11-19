@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { LinkButton, buttonClass } from "@/components/ui/button";
-import { SITE } from "@/lib/site";
+import { BANK_TRANSFER_TEXT, SITE } from "@/lib/site";
 import { isBlackcatConfigured } from "@/lib/payment/blackcat";
 import { CheckoutSteps } from "@/app/(storefront)/checkout/_components/checkout-steps";
 import {
@@ -67,7 +67,7 @@ function paymentNote(method: string, creditEnabled: boolean) {
 const PAYMENT_NOTE: Record<string, { title: string; body: string }> = {
   atm: {
     title: "關於 ATM 匯款",
-    body: `帳號用 LINE 跟我們拿，戶名：${SITE.company}。對帳完成就開通，約 1 個工作天。`,
+    body: `請匯到 ${BANK_TRANSFER_TEXT}。匯款後用 LINE 跟我們說一聲，對帳完成就開通，約 1 個工作天。`,
   },
   manual: {
     title: "我們會用 LINE 跟你聯絡",

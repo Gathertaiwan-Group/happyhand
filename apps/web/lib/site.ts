@@ -62,6 +62,24 @@ export const SITE = {
 } as const;
 
 /**
+ * ATM／臨櫃匯款資訊。結帳頁、付款完成頁、我的訂單、訂單成立信都引用這一份。
+ *
+ * 🔴 來源：後台工作坊「週三・身心沉澱之夜」（wed-evening）報名前先確認的
+ *    info_row「報名匯款・銀行／帳號／戶名」（2026-11-19 業主決定全站統一用
+ *    這個中國信託帳號）。這裡改了，後台那幾列也要跟著改，反之亦然 ——
+ *    兩邊不一致客人會匯錯。原始資料沒有分行，所以這裡也不寫分行。
+ */
+export const BANK_TRANSFER = {
+  bankName: "中國信託",
+  bankCode: "822",
+  account: "0000406540362705",
+  accountName: SITE.company,
+} as const;
+
+/** 一行版：「中國信託（銀行代號 822）帳號 0000406540362705，戶名 好日子股份有限公司」 */
+export const BANK_TRANSFER_TEXT = `${BANK_TRANSFER.bankName}（銀行代號 ${BANK_TRANSFER.bankCode}）帳號 ${BANK_TRANSFER.account}，戶名 ${BANK_TRANSFER.accountName}`;
+
+/**
  * 前三個是課程分類（業主 2026-11-18：預錄課程／線上直播／線下工作坊），
  * 網址與文字來自 lib/course-category.ts，跟 /courses 的篩選鈕同一份。
  * 桌機導覽把前 CATEGORY_NAV_COUNT 個放在字標左邊。

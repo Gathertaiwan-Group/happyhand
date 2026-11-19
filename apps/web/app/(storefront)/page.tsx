@@ -30,7 +30,7 @@ import { CATEGORY_HREF, sessionCategories } from "@/lib/course-category";
 export const metadata: Metadata = {
   // title 沿用 layout 的預設值（首頁不套 "%s｜快樂手" 模板）
   description:
-    "快樂手是柳樺老師的仁神術（JSJ）練習。每天十分鐘、坐著也能做、有人陪著練；預錄課程、線上直播與線下工作坊，把手放在自己身上，慢慢把緊繃的地方鬆開。",
+    "快樂手是柳樺老師的仁神術（JSJ）練習。每天十分鐘、坐著也能做、有人陪著練；預錄課程、線上直播與線下工作坊，把手放在自己身上，跟著呼吸慢慢練。",
   alternates: { canonical: "/" },
 };
 
@@ -156,7 +156,7 @@ export default async function HomePage() {
               身體會記得被好好對待的感覺
             </h1>
             <p className="mx-auto mt-[4px] max-w-[760px] text-[17px] leading-[1.75] text-pretty text-brown-700 md:mt-[10px] md:text-[19px]">
-              柳樺老師的仁神術（JSJ）練習<span className="hidden md:inline">。不需要體力、不需要器材，把手放在自己身上，慢慢把緊繃的地方鬆開</span>
+              柳樺老師的仁神術（JSJ）練習<span className="hidden md:inline">。不需要體力、不需要器材，把手放在自己身上，跟著呼吸慢慢練</span>
             </p>
           </div>
 

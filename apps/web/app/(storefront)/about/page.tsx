@@ -61,7 +61,7 @@ export default async function AboutPage() {
           <>
             把手放好，把呼吸放慢，
             <br className="hidden md:inline" />
-            剩下的身體自己會做
+            每天留一點時間給自己
           </>
         }
         lead="快樂手是好日子股份有限公司的品牌，教的是仁神術（Jin Shin Jyutsu）。這不是什麼神奇的東西，就是一套用自己的手照顧自己的方法。"

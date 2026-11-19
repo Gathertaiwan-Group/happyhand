@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     template: "%s｜快樂手",
   },
   description:
-    "快樂手是柳樺老師的仁神術（JSJ）練習。不需要體力、不需要器材，把手放在自己身上，慢慢把緊繃的地方鬆開。",
+    "快樂手是柳樺老師的仁神術（JSJ）練習。不需要體力、不需要器材，把手放在自己身上，跟著呼吸慢慢練。",
   openGraph: {
     title: "快樂手 Happy Healing Hands",
     description:

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { SITE, formatPrice } from "@/lib/site";
+import { BANK_TRANSFER_TEXT, SITE, formatPrice } from "@/lib/site";
 import type { EmailMessage } from "@/lib/email/resend";
 import { ONLINE_LINK_NOTE, placeText, type SessionFormat } from "@/lib/session-format";
 
@@ -102,7 +102,7 @@ ${SITE.disclaimer}`;
 /* ------------------------------------------------------------------ 訂單成立 */
 
 const PAYMENT_NEXT_STEP: Record<string, string> = {
-  atm: `匯款帳號請用 LINE 跟我們拿，戶名是${SITE.company}。匯款之後我們對帳完成就會開通，大約一個工作天。`,
+  atm: `請匯到 ${BANK_TRANSFER_TEXT}。匯款後用 LINE 跟我們說一聲，我們對帳完成就會開通，大約一個工作天。`,
   credit: "線上刷卡還在開通中，所以我們會用 LINE 跟你確認付款方式。現在還沒有跟你收款，請放心。",
   manual: "這筆是請我們代訂的。我們會用 LINE 跟你確認課程與付款方式，你也可以直接用 LINE 找我們。",
 };

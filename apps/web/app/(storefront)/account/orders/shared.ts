@@ -7,6 +7,8 @@
  *    兩邊本來就該有不同的說法，共用只會讓其中一邊講錯話。
  */
 
+import { BANK_TRANSFER_TEXT } from "@/lib/site";
+
 export const ORDER_STATUS_TEXT: Record<
   string,
   { tone: "ok" | "wait" | "muted" | "danger"; label: string }
@@ -68,7 +70,7 @@ export function formatSessionTime(iso: string | null): string {
  * 「那我現在該幹嘛」。刻意不寫「請至超商繳費」之類我們還沒接的流程。
  */
 export const NEXT_STEP: Record<string, string> = {
-  atm: "匯款帳號請用 LINE 跟我們拿。匯款之後我們對帳完成就會開通，大約一個工作天。",
+  atm: `請匯到 ${BANK_TRANSFER_TEXT}。匯款後用 LINE 跟我們說一聲，我們對帳完成就會開通，大約一個工作天。`,
   credit:
     "線上刷卡還在開通中，我們會用 LINE 跟你確認付款方式。現在還沒有跟你收款，請放心。",
   manual:

@@ -1,7 +1,7 @@
 "use client";
 
 import { buttonClass } from "@/components/ui/button";
-import { SITE } from "@/lib/site";
+import { BANK_TRANSFER, SITE } from "@/lib/site";
 import { CreditCard, Landmark, MessageCircle, type LucideIcon } from "lucide-react";
 import { ICON_STROKE } from "@/components/ui/icon-text";
 
@@ -136,12 +136,19 @@ export function PaymentOptions({
 
               {selected && opt.value === "atm" && (
                 <PanelBox>
-                  <p>
-                    戶名：{SITE.company}
-                    <br />
-                    銀行帳號用 LINE 問我們。
-                  </p>
-                  <p className="mt-[8px]">匯款對帳完成就開通。</p>
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-[12px] gap-y-[4px]">
+                    <dt>銀行</dt>
+                    <dd>
+                      {BANK_TRANSFER.bankName}（代號 {BANK_TRANSFER.bankCode}）
+                    </dd>
+                    <dt>帳號</dt>
+                    <dd className="select-all break-all font-semibold tabular-nums text-brown-900">
+                      {BANK_TRANSFER.account}
+                    </dd>
+                    <dt>戶名</dt>
+                    <dd>{BANK_TRANSFER.accountName}</dd>
+                  </dl>
+                  <p className="mt-[8px]">匯款後用 LINE 跟我們說一聲，對帳完成就開通。</p>
                 </PanelBox>
               )}
 

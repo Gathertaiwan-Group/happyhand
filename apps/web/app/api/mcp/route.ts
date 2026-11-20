@@ -31,7 +31,6 @@ import {
 import {
   previewAdjustSeats,
   previewCancelOrder,
-  previewMarkOrderPaid,
   previewRegrant,
   previewReissueInvoice,
   previewRevoke,
@@ -48,6 +47,7 @@ import { createMcpRequest } from "@/lib/admin/mcp-pending-repo";
 import { MCP_PREVIEW_ACTION_PREFIX, REFUND_REASON_MAX, VOID_REASON_MAX } from "@/lib/admin/mcp-pending";
 import { registerContentTools } from "@/lib/mcp/content-tools";
 import { registerOpsTools } from "@/lib/mcp/ops-tools";
+import { registerMobileTools } from "@/lib/mcp/mobile-tools";
 
 /**
  * MCP server —— 讓 AI 客戶端（Claude Code / claude.ai 連接器）查這個站的後台。
@@ -63,6 +63,8 @@ import { registerOpsTools } from "@/lib/mcp/ops-tools";
  *     （改客人信箱並把課搬到新帳號；lib/mcp/ops-tools.ts，token 綁訂單＋新信箱＋訂單狀態）。
  *   - 第二批（2026-11-18，lib/mcp/ops-tools.ts）：get_dashboard、list_problem_orders、list_inquiries、
  *     mark_inquiry_handled／unhandled、add_waitlist_entry、rebind_order_account。
+ *   - 第三批（2026-11-20，lib/mcp/mobile-tools.ts）：手機上傳圖片連結、銷售摘要／熱門課程／場次報名率、
+ *     名單與訂單 CSV、查會員、常見問題、補寄訂單信、寄線上上課連結；mark_order_paid 改成兩步確認＋核對入帳金額。
  *
  * ## 驗證：靜態 token 與 OAuth 並存（2026-11-15）
  *
@@ -665,22 +667,7 @@ const mcp = createMcpHandler(
 
     /* ---------------------------------------------------- 預覽制 */
 
-    server.registerTool(
-      "mark_order_paid",
-      {
-        title: "標記已收款（只限 ATM／人工，先預覽）",
-        description:
-          "把「待收款」訂單標記為已收款：佔用工作坊名額、開通線上課程、寄開通通知信給客人，之後不能改回待收款。" +
-          "⚠️ 只限付款方式是 ATM 轉帳（atm）或人工／臨櫃（manual）的訂單。" +
-          "線上刷卡（credit／黑貓 PAY）的訂單一律拒絕：請到黑貓 PAY 後台核對，金流商沒通知收款不能手動標記。" +
-          "金額由資料庫決定，不接受指定金額。請先確認款項確實已入帳。" +
-          DRY_RUN_NOTE,
-        inputSchema: z.object({ order: ORDER_ARG, dry_run: DRY_RUN_ARG }),
-        annotations: { ...WRITE, destructiveHint: true, idempotentHint: true, openWorldHint: true },
-      },
-      async ({ order, dry_run }) =>
-        previewOrRun("mark_order_paid", dry_run, () => previewMarkOrderPaid(db(), order)),
-    );
+    // mark_order_paid 2026-11-20 搬到 lib/mcp/mobile-tools.ts，改成兩步確認＋必須回報入帳金額且相符。
 
     server.registerTool(
       "reissue_invoice",
@@ -867,6 +854,7 @@ const mcp = createMcpHandler(
 
     registerContentTools(server, asMachine);
     registerOpsTools(server, asMachine);
+    registerMobileTools(server, asMachine);
   },
   { serverInfo: { name: "happyhands", version: "2.0.0" } },
 );

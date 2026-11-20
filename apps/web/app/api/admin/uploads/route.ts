@@ -4,6 +4,7 @@ import { checkCapability } from "@/lib/admin/guard";
 import { writeAudit } from "@/lib/admin/audit";
 import { createServiceClient } from "@/lib/supabase/server";
 import {
+  MEDIA_BUCKET,
   MEDIA_ALLOWED_MIME,
   MEDIA_MAX_BYTES,
   isMediaKind,
@@ -29,6 +30,9 @@ import { processImage, storeProcessedMedia, type ProcessFailure } from "@/lib/ad
 export const runtime = "nodejs";
 // 8MB 的圖解碼 + 縮放 + 轉檔，在冷啟動的 Vercel function 上可能要十幾秒。
 export const maxDuration = 30;
+
+/** 手機上傳連結的 ref：標準 UUID（任何版本），大小寫不拘。 */
+const UPLOAD_REF_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /* ------------------------------------------------------------------ 錯誤 */
 
@@ -86,6 +90,21 @@ export async function POST(request: Request) {
   }
   const kind: MediaKind = rawKind;
 
+  /*
+    手機上傳連結（MCP 的 create_image_upload_link → /admin/upload?ref=…）。
+    ref 就是檔名的 uuid，AI 之後用 get_image_upload_result 依 ref 找回這張圖。
+    🔴 只收標準 UUID 格式（擋路徑穿越）；同一個 ref 只能用一次（先查有沒有、upload 也是 upsert:false）。
+    沒帶 ref 時行為與原本完全相同（隨機 uuid）。
+  */
+  const rawRef = form.get("ref");
+  let ref: string | null = null;
+  if (rawRef !== null && rawRef !== "") {
+    if (typeof rawRef !== "string" || !UPLOAD_REF_RE.test(rawRef)) {
+      return fail("上傳連結不正確，請回到對話請 AI 重新產生一個。", 400);
+    }
+    ref = rawRef.toLowerCase();
+  }
+
   const file = form.get("file");
   if (!(file instanceof File)) return fail("沒有收到檔案，請重新選擇。", 400);
   if (file.size === 0) return fail("這個檔案是空的，請換一張再試。", 400);
@@ -123,10 +142,22 @@ export async function POST(request: Request) {
     return fail("伺服器設定不完整，請聯絡工程師。", 500);
   }
 
-  const stored = await storeProcessedMedia(db, staff, writeAudit, kind, image, randomUUID(), {
+  if (ref) {
+    const { data: existing, error: listErr } = await db.storage.from(MEDIA_BUCKET).list(kind, { search: ref, limit: 5 });
+    if (listErr) {
+      console.error("[admin/uploads] 查詢上傳連結失敗", listErr.message);
+      return fail("圖片上傳失敗，請稍後再試一次。", 502);
+    }
+    if ((existing ?? []).some((o) => o.name === `${ref}.webp`)) {
+      return fail("這個上傳連結已經用過了。回到對話跟 AI 說「好了」即可；要換圖請請 AI 重新產生一個連結。", 409);
+    }
+  }
+
+  const stored = await storeProcessedMedia(db, staff, writeAudit, kind, image, ref ?? randomUUID(), {
     // 原始檔名只是給人回想「我傳的是哪張」，截短避免有人用超長檔名塞爆稽核表。
     originalName: file.name.slice(0, 120),
     originalBytes: file.size,
+    ...(ref ? { via_upload_link: true } : {}),
   });
   if (!stored.ok) {
     return fail("圖片上傳失敗，請稍後再試一次。", 502);

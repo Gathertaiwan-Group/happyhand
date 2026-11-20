@@ -388,3 +388,48 @@ ${learnUrl}
 
   return { to: input.to, subject: "你的課程開通好了，可以開始上課", text, html };
 }
+
+/* -------------------------------------------------------- 線上上課連結 */
+
+/**
+ * 線上／混合場次的上課連結（MCP 的 send_session_online_link 用）。
+ *
+ * 🔴 連結不存資料庫：workshop_sessions 對 anon 有 table 層 select，塞進任何欄位都等於公開
+ *    （見 memory project_happyhands_online_workshops）。所以只在寄信當下由業主提供、直接寄給
+ *    已付款的報名者。網址的主機白名單在 lib/mcp/mobile-tools.ts 驗。
+ * ⚠️ 法規：不得有醫療宣稱。note 是業主補充的一句話，只當純文字輸出（escapeHtml）。
+ */
+export function sessionOnlineLinkEmail(input: {
+  to: string;
+  name: string;
+  courseTitle: string;
+  when: string;
+  link: string;
+  note: string | null;
+}): EmailMessage {
+  const noteText = input.note ? `\n${input.note}\n` : "";
+  const text = `${input.name} 你好，
+
+這是「${input.courseTitle}」的線上上課連結。
+
+上課時間：${input.when}
+上課連結：${input.link}
+${noteText}
+建議開課前 10 分鐘先點進去，確認聲音和畫面都正常。
+連結請不要轉傳給其他人。${textFooter()}`;
+
+  const html = layout(`
+    ${paragraph(`${input.name} 你好，`)}
+    ${paragraph(`這是「${input.courseTitle}」的線上上課連結。`)}
+    ${infoCard([
+      ["上課時間", input.when],
+      ["上課方式", "線上（視訊）"],
+    ])}
+    ${button(input.link, "進入線上教室")}
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.8;color:${SOFT};word-break:break-all;">按鈕點不開的話，複製這個網址到瀏覽器：<br>${escapeHtml(input.link)}</p>
+    ${input.note ? paragraph(input.note) : ""}
+    ${paragraph("建議開課前 10 分鐘先點進去，確認聲音和畫面都正常。連結請不要轉傳給其他人。")}
+  `);
+
+  return { to: input.to, subject: `線上上課連結：${input.courseTitle}（${input.when}）`, text, html };
+}

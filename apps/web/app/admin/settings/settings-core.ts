@@ -182,3 +182,34 @@ export async function saveHealthNoticeCore(
   ctx.revalidate();
   return { ok: true, dryRun: false };
 }
+
+/* ------------------------------------------------------------ 常見問題 */
+
+/** site_settings.faq 的原始值；沒有這一列回 null（前台用預設）。 */
+export async function loadFaqSetting(db: Db): Promise<unknown | null> {
+  const { data, error } = (await db
+    .from("site_settings")
+    .select("value")
+    .eq("key", "faq")
+    .maybeSingle()) as { data: { value: unknown } | null; error: { message: string } | null };
+  if (error) throw new Error(error.message);
+  return data?.value ?? null;
+}
+
+/** 寫入常見問題。value 必須已經過 lib/faq.ts 的 validateFaq()。 */
+export async function saveFaqCore(
+  ctx: SettingsCtx,
+  value: { groups: { title: string; items: { q: string; a: string }[] }[] },
+): Promise<SaveSettingResult> {
+  if (!(await upsertSetting(ctx, "faq", value))) return { ok: false, code: "failed" };
+  const questions = value.groups.reduce((n, g) => n + g.items.length, 0);
+  await ctx.audit(ctx.staff, {
+    action: "settings.faq",
+    entity: "site_settings",
+    entityId: "faq",
+    summary: `更新常見問題（${value.groups.length} 組、${questions} 題）`,
+    diff: { faq: value },
+  });
+  ctx.revalidate();
+  return { ok: true, dryRun: false };
+}

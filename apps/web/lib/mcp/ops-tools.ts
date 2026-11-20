@@ -63,16 +63,16 @@ import { SESSION_STATUS_LABEL, WAITLIST_STATUS_LABEL, loadSessionDetail, loadWai
 /* ================================================================ 型別與共用 */
 
 type McpServer = Parameters<Parameters<typeof createMcpHandler>[0]>[0];
-type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
+export type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
 
 /** route.ts 的 asMachine。與 content-tools.ts 的 RunAs 同一個形狀。 */
 export type RunAs = (fallbackOk: string, fn: () => Promise<ActionOutcome>) => Promise<ToolResult>;
 
-type Out = { ok: true; data: unknown } | { ok: false; error: string };
+export type Out = { ok: true; data: unknown } | { ok: false; error: string };
 
 const MAX_TEXT = 200_000;
 
-function jsonText(value: unknown): ToolResult {
+export function jsonText(value: unknown): ToolResult {
   let text = JSON.stringify(value, null, 2);
   if (text.length > MAX_TEXT) {
     text =
@@ -83,7 +83,7 @@ function jsonText(value: unknown): ToolResult {
 }
 
 /** 在 run 的身分範圍內跑一支工具（同 content-tools.ts 的 inScope）。 */
-async function inScope(
+export async function inScope(
   run: RunAs,
   cap: Capability,
   okLabel: string,
@@ -107,7 +107,7 @@ async function inScope(
   return res;
 }
 
-async function auditPreview(
+export async function auditPreview(
   staff: Staff,
   tool: string,
   entity: string,

@@ -19,6 +19,8 @@ export function revalidateSettingsPages() {
   // 講師照片也出現在這兩頁。漏掉的話後台換了照片，這裡要等 300 秒才變。
   revalidatePath("/teachers");
   revalidatePath("/about");
+  // 常見問題（site_settings.faq，2026-11-20 起可由 MCP 修改）
+  revalidatePath("/faq");
 }
 
 export function liveSettingsCtx(staff: Staff): SettingsCtx {

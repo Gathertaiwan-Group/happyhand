@@ -69,6 +69,8 @@ export type MemState = {
   rpcs: Record<string, (args: Record<string, unknown>) => { data?: unknown; error?: { message: string } | null }>;
   users: Record<string, { id: string; email: string }>;
   log: MemOp[];
+  /** storage 物件：key＝"<bucket>/<path>" */
+  storage?: Record<string, true>;
   /** true：任何 insert／update／delete 一出現就 throw（證明預覽不寫入） */
   writesThrow: boolean;
 };
@@ -124,6 +126,23 @@ export function memoryDb(state: MemState) {
       const r = h(args);
       return Promise.resolve({ data: r.data ?? null, error: r.error ?? null });
     },
+    storage: {
+      from(bucket: string) {
+        const objs = (state.storage ??= {});
+        return {
+          list(prefix: string, opts?: { search?: string }) {
+            const names = Object.keys(objs)
+              .filter((k) => k.startsWith(`${bucket}/${prefix}/`))
+              .map((k) => k.slice(`${bucket}/${prefix}/`.length))
+              .filter((n) => !opts?.search || n.includes(opts.search));
+            return Promise.resolve({ data: names.map((name) => ({ name })), error: null });
+          },
+          getPublicUrl(path: string) {
+            return { data: { publicUrl: `https://example.supabase.co/storage/v1/object/public/${bucket}/${path}` } };
+          },
+        };
+      },
+    },
     auth: {
       admin: {
         getUserById(id: string) {
@@ -137,6 +156,7 @@ export function memoryDb(state: MemState) {
       const filters: Filter[] = [];
       let order: [string, boolean][] = [];
       let limit: number | undefined;
+      let offset = 0;
       let count = false;
       let head = false;
       let single = false;
@@ -191,7 +211,7 @@ export function memoryDb(state: MemState) {
           if (m) out = out.filter((r) => (state.tables[m[1]] ?? []).some((p) => p.id === r[SINGLE_FK[m[1]]]));
         }
         const total = out.length;
-        if (limit !== undefined) out = out.slice(0, limit);
+        if (offset || limit !== undefined) out = out.slice(offset, limit !== undefined ? offset + limit : undefined);
         const data = head ? null : out.map((r) => project(table, r, op.columns));
         return {
           data: single ? ((data as Row[] | null)?.[0] ?? null) : data,
@@ -212,6 +232,18 @@ export function memoryDb(state: MemState) {
           return builder;
         },
         insert: (v: unknown) => write("insert", v),
+        upsert: (v: unknown, o?: { onConflict?: string }) => {
+          // 只支援單一衝突欄位：有就更新，沒有就新增（夠 site_settings 用）
+          if (state.writesThrow) throw new Error(`預覽不該寫入：upsert ${table}`);
+          const key = o?.onConflict ?? "id";
+          const val = (v as Row)[key];
+          const rows = (state.tables[table] ??= []);
+          const hit = rows.find((r) => r[key] === val);
+          if (hit) Object.assign(hit, v as Row);
+          else rows.push({ ...(v as Row) });
+          state.log.push({ table, kind: "update", values: v, filters: [`upsert:${key}`] });
+          return Promise.resolve({ data: null, error: null });
+        },
         update: (v: unknown) => write("update", v),
         delete: () => write("delete"),
         eq: (c: string, v: unknown) => add(`eq:${c}=${String(v)}`, (r) => getPath(r, c) === v),
@@ -220,6 +252,7 @@ export function memoryDb(state: MemState) {
         is: (c: string, v: null) => add(`is:${c}`, (r) => (getPath(r, c) ?? null) === v),
         gt: (c: string, v: string | number) => add(`gt:${c}`, (r) => { const x = getPath(r, c); return x != null && (x as string) > (v as string); }),
         gte: (c: string, v: string | number) => add(`gte:${c}`, (r) => { const x = getPath(r, c); return x != null && (x as string) >= (v as string); }),
+        lte: (c: string, v: string | number) => add(`lte:${c}`, (r) => { const x = getPath(r, c); return x != null && (x as string) <= (v as string); }),
         lt: (c: string, v: string | number) => add(`lt:${c}`, (r) => { const x = getPath(r, c); return x != null && (x as string) < (v as string); }),
         like: (c: string, pattern: string) => {
           const re = new RegExp("^" + pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*").replace(/_/g, ".") + "$");
@@ -240,6 +273,11 @@ export function memoryDb(state: MemState) {
         },
         limit(n: number) {
           limit = n;
+          return builder;
+        },
+        range(a: number, b: number) {
+          offset = a;
+          limit = b - a + 1;
           return builder;
         },
         maybeSingle() {
@@ -315,4 +353,38 @@ export async function revokeEntitlement(userId: string, productId: string): Prom
   const before = (s.tables.entitlements ?? []).length;
   s.tables.entitlements = (s.tables.entitlements ?? []).filter((e) => !(e.user_id === userId && e.product_id === productId));
   return s.tables.entitlements.length < before;
+}
+
+/* ----------------------------------------------------- @/lib/email/outbox */
+
+/** 假的寄信佇列：寫進 email_outbox 假表（dedupe_key 重複就不寫，跟正式版一樣回 false）。 */
+export async function enqueueEmail(entry: { dedupeKey: string; to: string; subject: string; text: string; html: string }): Promise<boolean> {
+  const s = mem();
+  if (s.writesThrow) throw new Error("預覽不該寄信");
+  const box = (s.tables.email_outbox ??= []);
+  if (box.some((r) => r.dedupe_key === entry.dedupeKey)) return false;
+  box.push({
+    id: `mail-${box.length + 1}`,
+    dedupe_key: entry.dedupeKey,
+    to_email: entry.to,
+    subject: entry.subject,
+    body_text: entry.text,
+    status: "pending",
+    created_at: new Date().toISOString(),
+  });
+  return true;
+}
+
+export async function flushOutbox() {
+  return { sent: 0, failed: 0 };
+}
+
+/* ----------------------------------------------------- @/lib/supabase/server（lib/data.ts 用到的另外兩支） */
+
+export function hasSupabaseEnv() {
+  return false;
+}
+
+export function createPublicClient() {
+  throw new Error("測試不該用到 public client");
 }

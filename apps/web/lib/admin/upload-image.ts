@@ -173,6 +173,8 @@ export async function uploadImage(
   file: File,
   kind: MediaKind,
   onProgress?: (progress: UploadProgress) => void,
+  /** 手機上傳連結（/admin/upload?ref=…）的 ref；一般後台表單不帶。 */
+  uploadRef?: string,
 ): Promise<UploadedImage> {
   if (!isAllowedMime(file.type)) throw new Error("圖片格式需為 JPEG、PNG 或 WebP。");
   if (file.size === 0) throw new Error("這個檔案是空的，請換一張再試。");
@@ -184,6 +186,7 @@ export async function uploadImage(
 
   const body = new FormData();
   body.append("kind", kind);
+  if (uploadRef) body.append("ref", uploadRef);
   // 第三個參數（檔名）讓 server 端的 formData().get("file") 拿到 File 而不是 Blob。
   // 檔名本身不會被採用 —— server 一律改用 uuid，這裡只是為了讓稽核紀錄看得出原檔。
   body.append("file", payload, file.name || "upload");

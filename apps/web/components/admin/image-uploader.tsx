@@ -33,6 +33,8 @@ export type SingleImageFieldProps = {
   name: string;
   label: string;
   kind: MediaKind;
+  /** 手機上傳連結頁（app/admin/upload）用：上傳時帶 ref，檔名＝ref。一般表單不要帶。 */
+  uploadRef?: string;
   defaultUrl?: string | null;
   hint?: string;
   /**
@@ -56,6 +58,7 @@ export function SingleImageField({
   name,
   label,
   kind,
+  uploadRef,
   defaultUrl,
   hint,
   form,
@@ -81,7 +84,7 @@ export function SingleImageField({
     setError("");
     setProgress({ stage: "uploading", percent: 0 });
     try {
-      const uploaded = await uploadImage(file, kind, setProgress);
+      const uploaded = await uploadImage(file, kind, setProgress, uploadRef);
       setUrl(uploaded.url);
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : "上傳失敗，請稍後再試一次。");
